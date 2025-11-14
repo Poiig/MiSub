@@ -1612,17 +1612,19 @@ async function handleMisubRequest(context) {
     const subconverterUrl = new URL(`https://${effectiveSubConverter}/sub`);
     subconverterUrl.searchParams.set('target', targetFormat);
     const shouldIncludeCallbackSource = combinedNodeList.trim().length > 0 || !hasDirectSubs;
+    const urlSources = [];
     if (shouldIncludeCallbackSource) {
-        subconverterUrl.searchParams.append('url', callbackUrl);
+        urlSources.push(callbackUrl);
     }
     directSubs.forEach(sub => {
         if (sub.url && /^https?:\/\//i.test(sub.url)) {
-            subconverterUrl.searchParams.append('url', sub.url);
+            urlSources.push(sub.url);
         }
     });
-    if (!shouldIncludeCallbackSource && directSubs.length === 0) {
-        subconverterUrl.searchParams.append('url', callbackUrl);
+    if (urlSources.length === 0) {
+        urlSources.push(callbackUrl);
     }
+    subconverterUrl.searchParams.set('url', urlSources.join('|'));
     if ((targetFormat === 'clash' || targetFormat === 'loon' || targetFormat === 'surge') && effectiveSubConfig && effectiveSubConfig.trim() !== '') {
         subconverterUrl.searchParams.set('config', effectiveSubConfig);
     }
