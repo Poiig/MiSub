@@ -195,7 +195,7 @@ async function getStorageAdapter(env) {
  */
 function migrateConfigSettings(config) {
     const migratedConfig = { ...config };
-    
+
     // 如果没有新的 prefixConfig，但有老的 prependSubName，则创建默认的 prefixConfig
     if (!migratedConfig.prefixConfig) {
         const fallbackEnabled = migratedConfig.prependSubName ?? true;
@@ -205,7 +205,7 @@ function migrateConfigSettings(config) {
             manualNodePrefix: '手动节点'
         };
     }
-    
+
     // 确保 prefixConfig 的所有字段都存在
     if (!migratedConfig.prefixConfig.hasOwnProperty('enableManualNodes')) {
         migratedConfig.prefixConfig.enableManualNodes = migratedConfig.prependSubName ?? true;
@@ -216,71 +216,71 @@ function migrateConfigSettings(config) {
     if (!migratedConfig.prefixConfig.hasOwnProperty('manualNodePrefix')) {
         migratedConfig.prefixConfig.manualNodePrefix = '手动节点';
     }
-    
+
     return migratedConfig;
 }
 
 // --- [新] 默认设置中增加通知阈值和存储类型 ---
 const defaultSettings = {
-  FileName: 'MiSub',
-  mytoken: 'auto',
-  profileToken: 'profiles',
-  subConverter: 'url.v1.mk',
-  subConfig: 'https://raw.githubusercontent.com/cmliu/ACL4SSR/refs/heads/main/Clash/config/ACL4SSR_Online_Full.ini',
-  prependSubName: true, // 保持向后兼容
-  prefixConfig: {
-    enableManualNodes: true,    // 手动节点前缀开关
-    enableSubscriptions: true,  // 机场订阅前缀开关
-    manualNodePrefix: '手动节点', // 手动节点前缀文本
-  },
-  NotifyThresholdDays: 3,
-  NotifyThresholdPercent: 90,
-  storageType: 'kv' // 新增：数据存储类型，默认 KV，可选 'd1'
+    FileName: 'MiSub',
+    mytoken: 'auto',
+    profileToken: 'profiles',
+    subConverter: 'url.v1.mk',
+    subConfig: 'https://raw.githubusercontent.com/cmliu/ACL4SSR/refs/heads/main/Clash/config/ACL4SSR_Online_Full.ini',
+    prependSubName: true, // 保持向后兼容
+    prefixConfig: {
+        enableManualNodes: true,    // 手动节点前缀开关
+        enableSubscriptions: true,  // 机场订阅前缀开关
+        manualNodePrefix: '手动节点', // 手动节点前缀文本
+    },
+    NotifyThresholdDays: 3,
+    NotifyThresholdPercent: 90,
+    storageType: 'kv' // 新增：数据存储类型，默认 KV，可选 'd1'
 };
 
 const formatBytes = (bytes, decimals = 2) => {
-  if (!+bytes || bytes < 0) return '0 B';
-  const k = 1024;
-  const dm = decimals < 0 ? 0 : decimals;
-  const sizes = ['B', 'KB', 'MB', 'GB', 'TB', 'PB'];
-  // toFixed(dm) after dividing by pow(k, i) was producing large decimal numbers
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  if (i < 0) return '0 B'; // Handle log(0) case
-  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`;
+    if (!+bytes || bytes < 0) return '0 B';
+    const k = 1024;
+    const dm = decimals < 0 ? 0 : decimals;
+    const sizes = ['B', 'KB', 'MB', 'GB', 'TB', 'PB'];
+    // toFixed(dm) after dividing by pow(k, i) was producing large decimal numbers
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    if (i < 0) return '0 B'; // Handle log(0) case
+    return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`;
 };
 
 // --- TG 通知函式 (无修改) ---
 async function sendTgNotification(settings, message) {
-  if (!settings.BotToken || !settings.ChatID) {
-    return false;
-  }
-  
-  // 为所有消息添加时间戳
-  const now = new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' });
-  const fullMessage = `${message}\n\n*时间:* \`${now} (UTC+8)\``;
-  
-  const url = `https://api.telegram.org/bot${settings.BotToken}/sendMessage`;
-  const payload = { 
-    chat_id: settings.ChatID, 
-    text: fullMessage, 
-    parse_mode: 'Markdown',
-    disable_web_page_preview: true // 禁用链接预览，使消息更紧凑
-  };
-  
-  try {
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-    if (response.ok) {
-      return true;
-    } else {
-      return false;
+    if (!settings.BotToken || !settings.ChatID) {
+        return false;
     }
-  } catch (error) {
-    return false;
-  }
+
+    // 为所有消息添加时间戳
+    const now = new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' });
+    const fullMessage = `${message}\n\n*时间:* \`${now} (UTC+8)\``;
+
+    const url = `https://api.telegram.org/bot${settings.BotToken}/sendMessage`;
+    const payload = {
+        chat_id: settings.ChatID,
+        text: fullMessage,
+        parse_mode: 'Markdown',
+        disable_web_page_preview: true // 禁用链接预览，使消息更紧凑
+    };
+
+    try {
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        if (response.ok) {
+            return true;
+        } else {
+            return false;
+        }
+    } catch (error) {
+        return false;
+    }
 }
 
 /**
@@ -292,67 +292,67 @@ async function sendTgNotification(settings, message) {
  * @returns {Promise<boolean>} - 是否发送成功
  */
 async function sendEnhancedTgNotification(settings, type, clientIp, additionalData = '') {
-  if (!settings.BotToken || !settings.ChatID) {
-    return false;
-  }
-  
-  let locationInfo = '';
-  
-  // 尝试获取IP地理位置信息
-  try {
-    const response = await fetch(`http://ip-api.com/json/${clientIp}?lang=zh-CN`, {
-      cf: { 
-        // 设置较短的超时时间，避免影响主请求
-        timeout: 3000 
-      }
-    });
-    
-    if (response.ok) {
-      const ipInfo = await response.json();
-      if (ipInfo.status === 'success') {
-        locationInfo = `
+    if (!settings.BotToken || !settings.ChatID) {
+        return false;
+    }
+
+    let locationInfo = '';
+
+    // 尝试获取IP地理位置信息
+    try {
+        const response = await fetch(`http://ip-api.com/json/${clientIp}?lang=zh-CN`, {
+            cf: {
+                // 设置较短的超时时间，避免影响主请求
+                timeout: 3000
+            }
+        });
+
+        if (response.ok) {
+            const ipInfo = await response.json();
+            if (ipInfo.status === 'success') {
+                locationInfo = `
 *国家:* \`${ipInfo.country || 'N/A'}\`
 *城市:* \`${ipInfo.city || 'N/A'}\`
 *ISP:* \`${ipInfo.org || 'N/A'}\`
 *ASN:* \`${ipInfo.as || 'N/A'}\``;
-      }
+            }
+        }
+    } catch (error) {
+        // 获取IP位置信息失败，忽略错误
     }
-  } catch (error) {
-    // 获取IP位置信息失败，忽略错误
-  }
-  
-  // 构建完整消息
-  const now = new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' });
-  const message = `${type}
+
+    // 构建完整消息
+    const now = new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' });
+    const message = `${type}
 
 *IP 地址:* \`${clientIp}\`${locationInfo}
 
 ${additionalData}
 
 *时间:* \`${now} (UTC+8)\``;
-  
-  const url = `https://api.telegram.org/bot${settings.BotToken}/sendMessage`;
-  const payload = { 
-    chat_id: settings.ChatID, 
-    text: message, 
-    parse_mode: 'Markdown',
-    disable_web_page_preview: true
-  };
-  
-  try {
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-    if (response.ok) {
-      return true;
-    } else {
-      return false;
+
+    const url = `https://api.telegram.org/bot${settings.BotToken}/sendMessage`;
+    const payload = {
+        chat_id: settings.ChatID,
+        text: message,
+        parse_mode: 'Markdown',
+        disable_web_page_preview: true
+    };
+
+    try {
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        if (response.ok) {
+            return true;
+        } else {
+            return false;
+        }
+    } catch (error) {
+        return false;
     }
-  } catch (error) {
-    return false;
-  }
 }
 
 async function handleCronTrigger(env) {
@@ -368,20 +368,20 @@ async function handleCronTrigger(env) {
         if (sub.url.startsWith('http') && sub.enabled) {
             try {
                 // --- 並行請求流量和節點內容 ---
-                const trafficRequest = fetch(new Request(sub.url, { 
-                    headers: { 'User-Agent': 'Clash for Windows/0.20.39' }, 
+                const trafficRequest = fetch(new Request(sub.url, {
+                    headers: { 'User-Agent': 'Clash for Windows/0.20.39' },
                     redirect: "follow",
-                    cf: { insecureSkipVerify: true } 
+                    cf: { insecureSkipVerify: true }
                 }));
-                const nodeCountRequest = fetch(new Request(sub.url, { 
-                    headers: { 'User-Agent': 'MiSub-Cron-Updater/1.0' }, 
+                const nodeCountRequest = fetch(new Request(sub.url, {
+                    headers: { 'User-Agent': 'MiSub-Cron-Updater/1.0' },
                     redirect: "follow",
-                    cf: { insecureSkipVerify: true } 
+                    cf: { insecureSkipVerify: true }
                 }));
                 const [trafficResult, nodeCountResult] = await Promise.allSettled([
                     Promise.race([trafficRequest, new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 8000))]),
                     Promise.race([nodeCountRequest, new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 8000))])
-                ]);   
+                ]);
 
                 if (trafficResult.status === 'fulfilled' && trafficResult.value.ok) {
                     const userInfoHeader = trafficResult.value.headers.get('subscription-userinfo');
@@ -396,17 +396,17 @@ async function handleCronTrigger(env) {
                         changesMade = true;
                     }
                 } else if (trafficResult.status === 'rejected') {
-                     // 流量请求失败
+                    // 流量请求失败
                 }
 
                 if (nodeCountResult.status === 'fulfilled' && nodeCountResult.value.ok) {
                     const text = await nodeCountResult.value.text();
                     let decoded = '';
-                    try { 
+                    try {
                         // 嘗試 Base64 解碼
-                        decoded = atob(text.replace(/\s/g, '')); 
-                    } catch { 
-                        decoded = text; 
+                        decoded = atob(text.replace(/\s/g, ''));
+                    } catch {
+                        decoded = text;
                     }
                     const matches = decoded.match(nodeRegex);
                     if (matches) {
@@ -417,7 +417,7 @@ async function handleCronTrigger(env) {
                     // 节点数量请求失败
                 }
 
-            } catch(e) {
+            } catch (e) {
                 // 请求处理出错
             }
         }
@@ -470,7 +470,7 @@ async function checkAndNotify(sub, settings, env) {
     if (sub.userInfo.expire) {
         const expiryDate = new Date(sub.userInfo.expire * 1000);
         const daysRemaining = Math.ceil((expiryDate - now) / ONE_DAY_MS);
-        
+
         // 检查是否满足通知条件：剩余天数 <= 阈值
         if (daysRemaining <= (settings.NotifyThresholdDays || 7)) {
             // 检查上次通知时间，防止24小时内重复通知
@@ -505,7 +505,7 @@ async function checkAndNotify(sub, settings, env) {
                     const i = Math.floor(Math.log(bytes) / Math.log(k));
                     return `${parseFloat((bytes / Math.pow(k, i)).toFixed(2))} ${sizes[i]}`;
                 };
-                
+
                 const message = `📈 *流量预警提醒* 📈
 
 *订阅名称:* \`${sub.name || '未命名'}\`
@@ -577,7 +577,7 @@ async function handleApiRequest(request, env) {
             if (!oldData) {
                 return new Response(JSON.stringify({ success: false, message: '未找到需要迁移的旧数据。' }), { status: 404 });
             }
-            
+
             await env.MISUB_KV.put(KV_KEY_SUBS, JSON.stringify(oldData));
             await env.MISUB_KV.put(KV_KEY_PROFILES, JSON.stringify([]));
             await env.MISUB_KV.put(OLD_KV_KEY + '_migrated_on_' + new Date().toISOString(), JSON.stringify(oldData));
@@ -616,7 +616,7 @@ async function handleApiRequest(request, env) {
             headers.append('Set-Cookie', `${COOKIE_NAME}=; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=0`);
             return new Response(JSON.stringify({ success: true }), { headers });
         }
-        
+
         case '/data': {
             try {
                 const storageAdapter = await getStorageAdapter(env);
@@ -631,7 +631,7 @@ async function handleApiRequest(request, env) {
                     profileToken: settings.profileToken || 'profiles'
                 };
                 return new Response(JSON.stringify({ misubs, profiles, config }), { headers: { 'Content-Type': 'application/json' } });
-            } catch(e) {
+            } catch (e) {
                 console.error('[API Error /data]', 'Failed to read from storage:', e);
                 return new Response(JSON.stringify({ error: '读取初始数据失败' }), { status: 500 });
             }
@@ -722,85 +722,85 @@ async function handleApiRequest(request, env) {
             }
         }
 
-            case '/node_count': {
-                if (request.method !== 'POST') return new Response('Method Not Allowed', { status: 405 });
-                const { url: subUrl } = await request.json();
-                if (!subUrl || typeof subUrl !== 'string' || !/^https?:\/\//.test(subUrl)) {
-                    return new Response(JSON.stringify({ error: 'Invalid or missing url' }), { status: 400 });
-                }
-                
-                const result = { count: 0, userInfo: null };
-
-                try {
-                    const fetchOptions = {
-                        headers: { 'User-Agent': 'MiSub-Node-Counter/2.0' },
-                        redirect: "follow",
-                        cf: { insecureSkipVerify: true }
-                    };
-                    const trafficFetchOptions = {
-                        headers: { 'User-Agent': 'Clash for Windows/0.20.39' },
-                        redirect: "follow",
-                        cf: { insecureSkipVerify: true }
-                    };
-
-                    const trafficRequest = fetch(new Request(subUrl, trafficFetchOptions));
-                    const nodeCountRequest = fetch(new Request(subUrl, fetchOptions));
-
-                    // --- [核心修正] 使用 Promise.allSettled 替换 Promise.all ---
-                    const responses = await Promise.allSettled([trafficRequest, nodeCountRequest]);
-
-                    // 1. 处理流量请求的结果
-                    if (responses[0].status === 'fulfilled' && responses[0].value.ok) {
-                        const trafficResponse = responses[0].value;
-                        const userInfoHeader = trafficResponse.headers.get('subscription-userinfo');
-                        if (userInfoHeader) {
-                            const info = {};
-                            userInfoHeader.split(';').forEach(part => {
-                                const [key, value] = part.trim().split('=');
-                                if (key && value) info[key] = /^\d+$/.test(value) ? Number(value) : value;
-                            });
-                            result.userInfo = info;
-                        }
-                    } else if (responses[0].status === 'rejected') {
-                        // 流量请求失败
-                    }
-
-                    // 2. 处理节点数请求的结果
-                    if (responses[1].status === 'fulfilled' && responses[1].value.ok) {
-                        const nodeCountResponse = responses[1].value;
-                        const text = await nodeCountResponse.text();
-                        let decoded = '';
-                        try { decoded = atob(text.replace(/\s/g, '')); } catch { decoded = text; }
-                        const lineMatches = decoded.match(/^(ss|ssr|vmess|vless|trojan|hysteria2?|hy|hy2|tuic|anytls|socks5):\/\//gm);
-                        if (lineMatches) {
-                            result.count = lineMatches.length;
-                        }
-                    } else if (responses[1].status === 'rejected') {
-                        // 节点数请求失败
-                    }
-                    
-                    // {{ AURA-X: Modify - 使用存储适配器优化节点计数更新. Approval: 寸止(ID:1735459200). }}
-                    // 只有在至少获取到一个有效信息时，才更新数据库
-                    if (result.userInfo || result.count > 0) {
-                        const storageAdapter = await getStorageAdapter(env);
-                        const originalSubs = await storageAdapter.get(KV_KEY_SUBS) || [];
-                        const allSubs = JSON.parse(JSON.stringify(originalSubs)); // 深拷贝
-                        const subToUpdate = allSubs.find(s => s.url === subUrl);
-
-                        if (subToUpdate) {
-                            subToUpdate.nodeCount = result.count;
-                            subToUpdate.userInfo = result.userInfo;
-
-                            await storageAdapter.put(KV_KEY_SUBS, allSubs);
-                        }
-                    }
-                    
-                } catch (e) {
-                    // 节点计数处理错误
-                }
-                
-                return new Response(JSON.stringify(result), { headers: { 'Content-Type': 'application/json' } });
+        case '/node_count': {
+            if (request.method !== 'POST') return new Response('Method Not Allowed', { status: 405 });
+            const { url: subUrl } = await request.json();
+            if (!subUrl || typeof subUrl !== 'string' || !/^https?:\/\//.test(subUrl)) {
+                return new Response(JSON.stringify({ error: 'Invalid or missing url' }), { status: 400 });
             }
+
+            const result = { count: 0, userInfo: null };
+
+            try {
+                const fetchOptions = {
+                    headers: { 'User-Agent': 'MiSub-Node-Counter/2.0' },
+                    redirect: "follow",
+                    cf: { insecureSkipVerify: true }
+                };
+                const trafficFetchOptions = {
+                    headers: { 'User-Agent': 'Clash for Windows/0.20.39' },
+                    redirect: "follow",
+                    cf: { insecureSkipVerify: true }
+                };
+
+                const trafficRequest = fetch(new Request(subUrl, trafficFetchOptions));
+                const nodeCountRequest = fetch(new Request(subUrl, fetchOptions));
+
+                // --- [核心修正] 使用 Promise.allSettled 替换 Promise.all ---
+                const responses = await Promise.allSettled([trafficRequest, nodeCountRequest]);
+
+                // 1. 处理流量请求的结果
+                if (responses[0].status === 'fulfilled' && responses[0].value.ok) {
+                    const trafficResponse = responses[0].value;
+                    const userInfoHeader = trafficResponse.headers.get('subscription-userinfo');
+                    if (userInfoHeader) {
+                        const info = {};
+                        userInfoHeader.split(';').forEach(part => {
+                            const [key, value] = part.trim().split('=');
+                            if (key && value) info[key] = /^\d+$/.test(value) ? Number(value) : value;
+                        });
+                        result.userInfo = info;
+                    }
+                } else if (responses[0].status === 'rejected') {
+                    // 流量请求失败
+                }
+
+                // 2. 处理节点数请求的结果
+                if (responses[1].status === 'fulfilled' && responses[1].value.ok) {
+                    const nodeCountResponse = responses[1].value;
+                    const text = await nodeCountResponse.text();
+                    let decoded = '';
+                    try { decoded = atob(text.replace(/\s/g, '')); } catch { decoded = text; }
+                    const lineMatches = decoded.match(/^(ss|ssr|vmess|vless|trojan|hysteria2?|hy|hy2|tuic|anytls|socks5):\/\//gm);
+                    if (lineMatches) {
+                        result.count = lineMatches.length;
+                    }
+                } else if (responses[1].status === 'rejected') {
+                    // 节点数请求失败
+                }
+
+                // {{ AURA-X: Modify - 使用存储适配器优化节点计数更新. Approval: 寸止(ID:1735459200). }}
+                // 只有在至少获取到一个有效信息时，才更新数据库
+                if (result.userInfo || result.count > 0) {
+                    const storageAdapter = await getStorageAdapter(env);
+                    const originalSubs = await storageAdapter.get(KV_KEY_SUBS) || [];
+                    const allSubs = JSON.parse(JSON.stringify(originalSubs)); // 深拷贝
+                    const subToUpdate = allSubs.find(s => s.url === subUrl);
+
+                    if (subToUpdate) {
+                        subToUpdate.nodeCount = result.count;
+                        subToUpdate.userInfo = result.userInfo;
+
+                        await storageAdapter.put(KV_KEY_SUBS, allSubs);
+                    }
+                }
+
+            } catch (e) {
+                // 节点计数处理错误
+            }
+
+            return new Response(JSON.stringify(result), { headers: { 'Content-Type': 'application/json' } });
+        }
 
         case '/fetch_external_url': { // New case
             if (request.method !== 'POST') return new Response('Method Not Allowed', { status: 405 });
@@ -916,13 +916,13 @@ async function handleApiRequest(request, env) {
 
         case '/debug_subscription': {
             if (request.method !== 'POST') return new Response('Method Not Allowed', { status: 405 });
-            
+
             try {
                 const { url: debugUrl, userAgent } = await request.json();
                 if (!debugUrl || typeof debugUrl !== 'string' || !/^https?:\/\//.test(debugUrl)) {
                     return new Response(JSON.stringify({ error: 'Invalid or missing url' }), { status: 400 });
                 }
-                
+
                 const result = {
                     url: debugUrl,
                     userAgent: userAgent || 'MiSub-Debug/1.0',
@@ -933,22 +933,22 @@ async function handleApiRequest(request, env) {
                     ssNodes: [],
                     error: null
                 };
-                
+
                 try {
                     const response = await fetch(new Request(debugUrl, {
                         headers: { 'User-Agent': result.userAgent },
                         redirect: "follow",
                         cf: { insecureSkipVerify: true }
                     }));
-                    
+
                     if (!response.ok) {
                         result.error = `HTTP ${response.status}: ${response.statusText}`;
                         return new Response(JSON.stringify(result), { headers: { 'Content-Type': 'application/json' } });
                     }
-                    
+
                     const text = await response.text();
                     result.rawContent = text.substring(0, 2000); // 限制原始内容长度
-                    
+
                     // 处理Base64解码
                     let processedText = text;
                     try {
@@ -962,23 +962,23 @@ async function handleApiRequest(request, env) {
                     } catch (e) {
                         // Base64解码失败，使用原始内容
                     }
-                    
+
                     result.processedContent = processedText.substring(0, 2000); // 限制处理后内容长度
-                    
+
                     // 提取所有有效节点
                     const allNodes = processedText.replace(/\r\n/g, '\n').split('\n')
                         .map(line => line.trim())
                         .filter(line => /^(ss|ssr|vmess|vless|trojan|hysteria2?|hy|hy2|tuic|anytls|socks5):\/\//.test(line));
-                    
+
                     result.validNodes = allNodes.slice(0, 20); // 限制显示节点数量
-                    
+
                     // 特别提取SS节点进行分析
                     result.ssNodes = allNodes.filter(line => line.startsWith('ss://')).map(line => {
                         try {
                             const hashIndex = line.indexOf('#');
                             let baseLink = hashIndex !== -1 ? line.substring(0, hashIndex) : line;
                             let fragment = hashIndex !== -1 ? line.substring(hashIndex) : '';
-                            
+
                             const protocolEnd = baseLink.indexOf('://');
                             const atIndex = baseLink.indexOf('@');
                             let analysis = {
@@ -988,16 +988,16 @@ async function handleApiRequest(request, env) {
                                 base64Part: '',
                                 credentials: ''
                             };
-                            
+
                             if (protocolEnd !== -1 && atIndex !== -1) {
                                 const base64Part = baseLink.substring(protocolEnd + 3, atIndex);
                                 analysis.base64Part = base64Part;
-                                
+
                                 if (base64Part.includes('%')) {
                                     analysis.hasUrlEncoding = true;
                                     const decodedBase64 = decodeURIComponent(base64Part);
                                     analysis.fixed = 'ss://' + decodedBase64 + baseLink.substring(atIndex) + fragment;
-                                    
+
                                     try {
                                         analysis.credentials = atob(decodedBase64);
                                     } catch (e) {
@@ -1011,7 +1011,7 @@ async function handleApiRequest(request, env) {
                                     }
                                 }
                             }
-                            
+
                             return analysis;
                         } catch (e) {
                             return {
@@ -1020,17 +1020,17 @@ async function handleApiRequest(request, env) {
                             };
                         }
                     }).slice(0, 10); // 限制SS节点分析数量
-                    
+
                     result.success = true;
                     result.totalNodes = allNodes.length;
                     result.ssNodesCount = allNodes.filter(line => line.startsWith('ss://')).length;
-                    
+
                 } catch (e) {
                     result.error = e.message;
                 }
-                
+
                 return new Response(JSON.stringify(result), { headers: { 'Content-Type': 'application/json' } });
-                
+
             } catch (e) {
                 return new Response(JSON.stringify({ error: `调试失败: ${e.message}` }), { status: 500 });
             }
@@ -1067,45 +1067,45 @@ async function handleApiRequest(request, env) {
             return new Response('Method Not Allowed', { status: 405 });
         }
     }
-    
+
     return new Response('API route not found', { status: 404 });
 }
 // --- 名称前缀辅助函数 (无修改) ---
 function prependNodeName(link, prefix) {
-  if (!prefix) return link;
-  const appendToFragment = (baseLink, namePrefix) => {
-    const hashIndex = baseLink.lastIndexOf('#');
-    const originalName = hashIndex !== -1 ? decodeURIComponent(baseLink.substring(hashIndex + 1)) : '';
-    const base = hashIndex !== -1 ? baseLink.substring(0, hashIndex) : baseLink;
-    if (originalName.startsWith(namePrefix)) {
-        return baseLink;
+    if (!prefix) return link;
+    const appendToFragment = (baseLink, namePrefix) => {
+        const hashIndex = baseLink.lastIndexOf('#');
+        const originalName = hashIndex !== -1 ? decodeURIComponent(baseLink.substring(hashIndex + 1)) : '';
+        const base = hashIndex !== -1 ? baseLink.substring(0, hashIndex) : baseLink;
+        if (originalName.startsWith(namePrefix)) {
+            return baseLink;
+        }
+        const newName = originalName ? `${namePrefix} - ${originalName}` : namePrefix;
+        return `${base}#${encodeURIComponent(newName)}`;
     }
-    const newName = originalName ? `${namePrefix} - ${originalName}` : namePrefix;
-    return `${base}#${encodeURIComponent(newName)}`;
-  }
-  if (link.startsWith('vmess://')) {
-    try {
-      const base64Part = link.substring('vmess://'.length);
-      const binaryString = atob(base64Part);
-      const bytes = new Uint8Array(binaryString.length);
-      for (let i = 0; i < binaryString.length; i++) {
-          bytes[i] = binaryString.charCodeAt(i);
-      }
-      const jsonString = new TextDecoder('utf-8').decode(bytes);
-      const nodeConfig = JSON.parse(jsonString);
-      const originalPs = nodeConfig.ps || '';
-      if (!originalPs.startsWith(prefix)) {
-        nodeConfig.ps = originalPs ? `${prefix} - ${originalPs}` : prefix;
-      }
-      const newJsonString = JSON.stringify(nodeConfig);
-      const newBase64Part = btoa(unescape(encodeURIComponent(newJsonString)));
-      return 'vmess://' + newBase64Part;
-    } catch (e) {
-      console.error("为 vmess 节点添加名称前缀失败，将回退到通用方法。", e);
-      return appendToFragment(link, prefix);
+    if (link.startsWith('vmess://')) {
+        try {
+            const base64Part = link.substring('vmess://'.length);
+            const binaryString = atob(base64Part);
+            const bytes = new Uint8Array(binaryString.length);
+            for (let i = 0; i < binaryString.length; i++) {
+                bytes[i] = binaryString.charCodeAt(i);
+            }
+            const jsonString = new TextDecoder('utf-8').decode(bytes);
+            const nodeConfig = JSON.parse(jsonString);
+            const originalPs = nodeConfig.ps || '';
+            if (!originalPs.startsWith(prefix)) {
+                nodeConfig.ps = originalPs ? `${prefix} - ${originalPs}` : prefix;
+            }
+            const newJsonString = JSON.stringify(nodeConfig);
+            const newBase64Part = btoa(unescape(encodeURIComponent(newJsonString)));
+            return 'vmess://' + newBase64Part;
+        } catch (e) {
+            console.error("为 vmess 节点添加名称前缀失败，将回退到通用方法。", e);
+            return appendToFragment(link, prefix);
+        }
     }
-  }
-  return appendToFragment(link, prefix);
+    return appendToFragment(link, prefix);
 }
 
 /**
@@ -1128,7 +1128,7 @@ function isValidBase64(str) {
  */
 function getProcessedUserAgent(originalUserAgent, url = '') {
     if (!originalUserAgent) return originalUserAgent;
-    
+
     // CF-Workers-SUB的精华策略：
     // 统一使用v2rayN UA获取订阅，绕过机场过滤同时保证获取完整节点
     // 不需要复杂的客户端判断，简单而有效
@@ -1138,17 +1138,17 @@ function getProcessedUserAgent(originalUserAgent, url = '') {
 // --- 节点列表生成函数 ---
 async function generateCombinedNodeList(context, config, userAgent, misubs, prependedContent = '', profilePrefixSettings = null) {
     const nodeRegex = /^(ss|ssr|vmess|vless|trojan|hysteria2?|hy|hy2|tuic|anytls|socks5):\/\//g;
-    
+
     // 判断是否启用手动节点前缀
-    const shouldPrependManualNodes = profilePrefixSettings?.enableManualNodes ?? 
-        config.prefixConfig?.enableManualNodes ?? 
+    const shouldPrependManualNodes = profilePrefixSettings?.enableManualNodes ??
+        config.prefixConfig?.enableManualNodes ??
         config.prependSubName ?? true;
-    
+
     // 手动节点前缀文本
-    const manualNodePrefix = profilePrefixSettings?.manualNodePrefix ?? 
-        config.prefixConfig?.manualNodePrefix ?? 
+    const manualNodePrefix = profilePrefixSettings?.manualNodePrefix ??
+        config.prefixConfig?.manualNodePrefix ??
         '手动节点';
-    
+
     const processedManualNodes = misubs.filter(sub => !sub.url.toLowerCase().startsWith('http')).map(node => {
         if (node.isExpiredNode) {
             return node.url; // Directly use the URL for expired node
@@ -1160,7 +1160,7 @@ async function generateCombinedNodeList(context, config, userAgent, misubs, prep
                     const hashIndex = processedUrl.indexOf('#');
                     let baseLink = hashIndex !== -1 ? processedUrl.substring(0, hashIndex) : processedUrl;
                     let fragment = hashIndex !== -1 ? processedUrl.substring(hashIndex) : '';
-                    
+
                     // 检查base64部分是否包含URL编码字符
                     const protocolEnd = baseLink.indexOf('://');
                     const atIndex = baseLink.indexOf('@');
@@ -1177,7 +1177,7 @@ async function generateCombinedNodeList(context, config, userAgent, misubs, prep
                     // 如果处理失败，使用原始链接
                 }
             }
-            
+
             return shouldPrependManualNodes ? prependNodeName(processedUrl, manualNodePrefix) : processedUrl;
         }
     }).join('\n');
@@ -1189,14 +1189,14 @@ async function generateCombinedNodeList(context, config, userAgent, misubs, prep
             const processedUserAgent = getProcessedUserAgent(userAgent, sub.url);
             const requestHeaders = { 'User-Agent': processedUserAgent };
             const response = await Promise.race([
-                fetch(new Request(sub.url, { 
-                    headers: requestHeaders, 
-                    redirect: "follow", 
-                    cf: { 
+                fetch(new Request(sub.url, {
+                    headers: requestHeaders,
+                    redirect: "follow",
+                    cf: {
                         insecureSkipVerify: true,
                         allowUntrusted: true,
                         validateCertificate: false
-                    } 
+                    }
                 })),
                 new Promise((_, reject) => setTimeout(() => reject(new Error('Request timed out')), 8000))
             ]);
@@ -1205,7 +1205,7 @@ async function generateCombinedNodeList(context, config, userAgent, misubs, prep
                 return '';
             }
             let text = await response.text();
-            
+
             // 智能内容类型检测 - 更精确的判断条件
             if (text.includes('proxies:') && text.includes('rules:')) {
                 // 这是完整的Clash配置文件，不是节点列表
@@ -1235,7 +1235,7 @@ async function generateCombinedNodeList(context, config, userAgent, misubs, prep
                             const hashIndex = line.indexOf('#');
                             let baseLink = hashIndex !== -1 ? line.substring(0, hashIndex) : line;
                             let fragment = hashIndex !== -1 ? line.substring(hashIndex) : '';
-                            
+
                             // 检查base64部分是否包含URL编码字符
                             const protocolEnd = baseLink.indexOf('://');
                             const atIndex = baseLink.indexOf('@');
@@ -1260,7 +1260,7 @@ async function generateCombinedNodeList(context, config, userAgent, misubs, prep
             // [核心重構] 引入白名單 (keep:) 和黑名單 (exclude) 模式
             if (sub.exclude && sub.exclude.trim() !== '') {
                 const rules = sub.exclude.trim().split('\n').map(r => r.trim()).filter(Boolean);
-                
+
                 const keepRules = rules.filter(r => r.toLowerCase().startsWith('keep:'));
 
                 if (keepRules.length > 0) {
@@ -1279,7 +1279,7 @@ async function generateCombinedNodeList(context, config, userAgent, misubs, prep
                     });
 
                     const nameRegex = nameRegexParts.length > 0 ? new RegExp(nameRegexParts.join('|'), 'i') : null;
-                    
+
                     validNodes = validNodes.filter(nodeLink => {
                         // 檢查協議是否匹配
                         const protocolMatch = nodeLink.match(/^(.*?):\/\//);
@@ -1316,7 +1316,7 @@ async function generateCombinedNodeList(context, config, userAgent, misubs, prep
                             nameRegexParts.push(rule);
                         }
                     });
-                    
+
                     const nameRegex = nameRegexParts.length > 0 ? new RegExp(nameRegexParts.join('|'), 'i') : null;
 
                     validNodes = validNodes.filter(nodeLink => {
@@ -1360,16 +1360,16 @@ async function generateCombinedNodeList(context, config, userAgent, misubs, prep
                     });
                 }
             }
-            
+
             // 判断是否启用订阅前缀
-            const shouldPrependSubscriptions = profilePrefixSettings?.enableSubscriptions ?? 
-                config.prefixConfig?.enableSubscriptions ?? 
+            const shouldPrependSubscriptions = profilePrefixSettings?.enableSubscriptions ??
+                config.prefixConfig?.enableSubscriptions ??
                 config.prependSubName ?? true;
-            
+
             return (shouldPrependSubscriptions && sub.name)
                 ? validNodes.map(node => prependNodeName(node, sub.name)).join('\n')
                 : validNodes.join('\n');
-        } catch (e) { 
+        } catch (e) {
             // 订阅处理错误，生成错误节点
             const errorNodeName = `连接错误-${sub.name || '未知'}`;
             return `trojan://error@127.0.0.1:8888?security=tls&allowInsecure=1&type=tcp#${encodeURIComponent(errorNodeName)}`;
@@ -1408,7 +1408,7 @@ async function handleMisubRequest(context) {
     const allMisubs = misubsData || [];
     const allProfiles = profilesData || [];
     // 关键：我们在这里定义了 `config`，后续都应该使用它
-    const config = migrateConfigSettings({ ...defaultSettings, ...settings }); 
+    const config = migrateConfigSettings({ ...defaultSettings, ...settings });
 
     let token = '';
     let profileIdentifier = null;
@@ -1484,10 +1484,14 @@ async function handleMisubRequest(context) {
         effectiveSubConfig = config.subConfig;
     }
 
+    const directSubs = targetMisubs.filter(sub => sub.passThrough);
+    const processedMisubs = targetMisubs.filter(sub => !sub.passThrough);
+    const hasDirectSubs = directSubs.length > 0;
+
     if (!effectiveSubConverter || effectiveSubConverter.trim() === '') {
         return new Response('Subconverter backend is not configured.', { status: 500 });
     }
-    
+
     let targetFormat = url.searchParams.get('target');
     if (!targetFormat) {
         const supportedFormats = ['clash', 'singbox', 'surge', 'loon', 'base64', 'v2ray', 'trojan'];
@@ -1508,7 +1512,7 @@ async function handleMisubRequest(context) {
             ['clash.meta', 'clash'],
             ['clash-verge', 'clash'],
             ['meta', 'clash'],
-            
+
             // 其他客戶端
             ['stash', 'clash'],
             ['nekoray', 'clash'],
@@ -1538,9 +1542,9 @@ async function handleMisubRequest(context) {
         const clientIp = request.headers.get('CF-Connecting-IP') || 'N/A';
         const country = request.headers.get('CF-IPCountry') || 'N/A';
         const domain = url.hostname;
-        
+
         let additionalData = `*域名:* \`${domain}\`\n*客户端:* \`${userAgentHeader}\`\n*请求格式:* \`${targetFormat}\``;
-        
+
         if (profileIdentifier) {
             additionalData += `\n*订阅组:* \`${subName}\``;
             const profile = allProfiles.find(p => (p.customId && p.customId === profileIdentifier) || p.id === profileIdentifier);
@@ -1549,7 +1553,7 @@ async function handleMisubRequest(context) {
                 additionalData += `\n*到期时间:* \`${expiryDateStr}\``;
             }
         }
-        
+
         // 使用增强版TG通知，包含IP地理位置信息
         context.waitUntil(sendEnhancedTgNotification(config, '🛰️ *订阅被访问*', clientIp, additionalData));
     }
@@ -1576,15 +1580,15 @@ async function handleMisubRequest(context) {
     }
 
     const combinedNodeList = await generateCombinedNodeList(
-        context, 
-        config, 
-        userAgentHeader, 
-        targetMisubs, 
+        context,
+        config,
+        userAgentHeader,
+        processedMisubs,
         prependedContentForSubconverter,
         profileIdentifier ? allProfiles.find(p => (p.customId && p.customId === profileIdentifier) || p.id === profileIdentifier)?.prefixSettings : null
     );
 
-    if (targetFormat === 'base64') {
+    if (targetFormat === 'base64' && !hasDirectSubs) {
         let contentToEncode;
         if (isProfileExpired) {
             contentToEncode = DEFAULT_EXPIRED_NODE + '\n'; // Return the expired node link for base64 clients
@@ -1604,15 +1608,26 @@ async function handleMisubRequest(context) {
         const headers = { "Content-Type": "text/plain; charset=utf-8", 'Cache-Control': 'no-store, no-cache' };
         return new Response(base64Content, { headers });
     }
-    
+
     const subconverterUrl = new URL(`https://${effectiveSubConverter}/sub`);
     subconverterUrl.searchParams.set('target', targetFormat);
-    subconverterUrl.searchParams.set('url', callbackUrl);
+    const shouldIncludeCallbackSource = combinedNodeList.trim().length > 0 || !hasDirectSubs;
+    if (shouldIncludeCallbackSource) {
+        subconverterUrl.searchParams.append('url', callbackUrl);
+    }
+    directSubs.forEach(sub => {
+        if (sub.url && /^https?:\/\//i.test(sub.url)) {
+            subconverterUrl.searchParams.append('url', sub.url);
+        }
+    });
+    if (!shouldIncludeCallbackSource && directSubs.length === 0) {
+        subconverterUrl.searchParams.append('url', callbackUrl);
+    }
     if ((targetFormat === 'clash' || targetFormat === 'loon' || targetFormat === 'surge') && effectiveSubConfig && effectiveSubConfig.trim() !== '') {
         subconverterUrl.searchParams.set('config', effectiveSubConfig);
     }
-    subconverterUrl.searchParams.set('new_name', 'true');
-    
+    subconverterUrl.searchParams.set('new_name', hasDirectSubs ? 'false' : 'true');
+
     try {
         const subconverterResponse = await fetch(subconverterUrl.toString(), {
             method: 'GET',
@@ -1623,7 +1638,7 @@ async function handleMisubRequest(context) {
             throw new Error(`Subconverter service returned status: ${subconverterResponse.status}. Body: ${errorBody}`);
         }
         const responseText = await subconverterResponse.text();
-        
+
         const responseHeaders = new Headers(subconverterResponse.headers);
         responseHeaders.set("Content-Disposition", `attachment; filename*=utf-8''${encodeURIComponent(subName)}`);
         responseHeaders.set('Content-Type', 'text/plain; charset=utf-8');

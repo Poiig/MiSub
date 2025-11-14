@@ -18,6 +18,7 @@ export function useSubscriptions(initialSubsRef, markDirty) {
       isUpdating: false,
       userInfo: sub.userInfo || null,
       exclude: sub.exclude || '', // 新增 exclude 属性
+      passThrough: sub.passThrough ?? false,
     }));
     // [最終修正] 移除此處的自動更新迴圈，以防止本地開發伺服器因併發請求過多而崩潰。
     // subscriptions.value.forEach(sub => handleUpdateNodeCount(sub.id, true)); 
@@ -57,6 +58,10 @@ export function useSubscriptions(initialSubsRef, markDirty) {
   async function handleUpdateNodeCount(subId, isInitialLoad = false) {
     const subToUpdate = subscriptions.value.find(s => s.id === subId);
     if (!subToUpdate || !subToUpdate.url.startsWith('http')) return;
+    if (subToUpdate.passThrough) {
+      showToast('该订阅已开启直传模式，面板不再解析节点', 'info');
+      return;
+    }
     
     if (!isInitialLoad) {
         subToUpdate.isUpdating = true;
@@ -80,20 +85,35 @@ export function useSubscriptions(initialSubsRef, markDirty) {
   }
 
   function addSubscription(sub) {
-    subscriptions.value.unshift(sub);
+    const normalizedSub = {
+      ...sub,
+      passThrough: sub.passThrough ?? false,
+    };
+    subscriptions.value.unshift(normalizedSub);
     subsCurrentPage.value = 1;
-    handleUpdateNodeCount(sub.id); // 新增時自動更新單個
+    if (!normalizedSub.passThrough) {
+      handleUpdateNodeCount(normalizedSub.id); // 新增時自動更新單個
+    }
     markDirty();
   }
 
   function updateSubscription(updatedSub) {
     const index = subscriptions.value.findIndex(s => s.id === updatedSub.id);
     if (index !== -1) {
-      if (subscriptions.value[index].url !== updatedSub.url) {
-        updatedSub.nodeCount = 0;
-        handleUpdateNodeCount(updatedSub.id); // URL 變更時自動更新單個
+      const normalizedSub = {
+        ...updatedSub,
+        passThrough: updatedSub.passThrough ?? false,
+      };
+      const prevSub = subscriptions.value[index];
+      const urlChanged = prevSub.url !== normalizedSub.url;
+      const disabledPassThrough = prevSub.passThrough && !normalizedSub.passThrough;
+      if (urlChanged) {
+        normalizedSub.nodeCount = 0;
       }
-      subscriptions.value[index] = updatedSub;
+      subscriptions.value[index] = normalizedSub;
+      if (!normalizedSub.passThrough && (urlChanged || disabledPassThrough)) {
+        handleUpdateNodeCount(normalizedSub.id); // URL 變更或關閉直傳時自動更新單個
+      }
       markDirty();
     }
   }
@@ -115,11 +135,15 @@ export function useSubscriptions(initialSubsRef, markDirty) {
   // {{ AURA-X: Modify - 使用批量更新API优化批量导入. Approval: 寸止(ID:1735459200). }}
   // [优化] 批量導入使用批量更新API，减少KV写入次数
   async function addSubscriptionsFromBulk(subs) {
-    subscriptions.value.unshift(...subs);
+    const normalizedSubs = subs.map(sub => ({
+      ...sub,
+      passThrough: sub.passThrough ?? false,
+    }));
+    subscriptions.value.unshift(...normalizedSubs);
     markDirty();
 
     // 过滤出需要更新的订阅（只有http/https链接）
-    const subsToUpdate = subs.filter(sub => sub.url && sub.url.startsWith('http'));
+    const subsToUpdate = normalizedSubs.filter(sub => sub.url && sub.url.startsWith('http') && !sub.passThrough);
 
     if (subsToUpdate.length > 0) {
       showToast(`正在批量更新 ${subsToUpdate.length} 个订阅...`, 'success');
