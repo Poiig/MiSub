@@ -1669,14 +1669,18 @@ async function generateCombinedNodeList(context, config, userAgent, misubs, prep
                 config.prefixConfig?.enableSubscriptions ??
                 config.prependSubName ?? true;
 
-            // 记录解析结果
-            const hasNodes = validNodes.length > 0;
+            // 记录解析结果 - 只有解析到节点才算成功，否则让 subconverter 尝试
+            const hasValidNodes = validNodes.length > 0;
             subscriptionResults.push({
                 url: sub.url,
                 name: sub.name,
-                success: hasNodes,
+                success: hasValidNodes,  // 有节点才算成功
                 nodeCount: validNodes.length
             });
+
+            if (!hasValidNodes) {
+                console.log(`[generateCombinedNodeList] 订阅 ${sub.name} 没有有效节点，将由 subconverter 处理`);
+            }
 
             return (shouldPrependSubscriptions && sub.name)
                 ? validNodes.map(node => prependNodeName(node, sub.name)).join('\n')
@@ -1696,8 +1700,19 @@ async function generateCombinedNodeList(context, config, userAgent, misubs, prep
         }
     });
     const processedSubContents = await Promise.all(subPromises);
+
+    // 调试信息
+    console.log(`[generateCombinedNodeList] 处理结果:`);
+    console.log(`  - 手动节点: ${processedManualNodes.split('\n').filter(Boolean).length} 个`);
+    processedSubContents.forEach((content, index) => {
+        const nodeCount = content.split('\n').filter(Boolean).length;
+        console.log(`  - 订阅 ${index + 1}: ${nodeCount} 个节点`);
+    });
+
     const combinedContent = (processedManualNodes + '\n' + processedSubContents.join('\n'));
     const uniqueNodesString = [...new Set(combinedContent.split('\n').map(line => line.trim()).filter(line => line))].join('\n');
+
+    console.log(`[generateCombinedNodeList] 合并后总节点数: ${uniqueNodesString.split('\n').filter(Boolean).length}`);
 
     // 确保最终的字符串在非空时以换行符结束，以兼容 subconverter
     let finalNodeList = uniqueNodesString;
@@ -1926,6 +1941,9 @@ async function handleMisubRequest(context) {
     const callbackPath = profileIdentifier ? `/${token}/${profileIdentifier}` : `/${token}`;
     const callbackUrl = `${url.protocol}//${url.host}${callbackPath}?target=base64&callback_token=${callbackToken}`;
     if (url.searchParams.get('callback_token') === callbackToken) {
+        console.log('[handleMisubRequest] 🔄 Callback 被调用');
+        console.log(`[handleMisubRequest] 返回内容长度: ${combinedNodeList.length} 字符`);
+        console.log(`[handleMisubRequest] 节点数量: ${combinedNodeList.split('\n').filter(line => /^(ss|ssr|vmess|vless|trojan|hysteria|hy|tuic):\/\//.test(line.trim())).length}`);
         const headers = { "Content-Type": "text/plain; charset=utf-8", 'Cache-Control': 'no-store, no-cache' };
         return new Response(base64Content, { headers });
     }
@@ -1938,24 +1956,32 @@ async function handleMisubRequest(context) {
 
     // 打印解析结果摘要
     console.log('[handleMisubRequest] 订阅解析结果:');
+    console.log(`[handleMisubRequest] combinedNodeList 长度: ${combinedNodeList.length} 字符`);
+    console.log(`[handleMisubRequest] subscriptionResults 数量: ${subscriptionResults.length}`);
+
     subscriptionResults.forEach(result => {
         console.log(`  - ${result.name || result.url}: ${result.success ? `✓ ${result.nodeCount} 个节点` : `✗ ${result.error}`}`);
     });
 
-    // 如果本地成功解析了节点，添加 callback（包含已重命名的节点）
+    // 策略：将成功解析的节点（callback）和失败的原始 URL 都发送给 subconverter
+    // 1. 先添加解析失败的订阅原始 URL
+    const failedSubscriptions = subscriptionResults.filter(r => !r.success && r.url);
+    failedSubscriptions.forEach(result => {
+        urlSources.push(result.url);
+        console.log(`[handleMisubRequest] ✓ 添加失败订阅的原始 URL: ${result.name || result.url}`);
+    });
+
+    // 2. 再添加本地成功解析的节点（callback），这样 callback 中的重命名节点会覆盖/补充原始订阅
     const hasLocalNodes = combinedNodeList.trim().length > 0;
+    console.log(`[handleMisubRequest] hasLocalNodes: ${hasLocalNodes}`);
+
     if (hasLocalNodes) {
         urlSources.push(callbackUrl);
         console.log('[handleMisubRequest] ✓ 添加本地解析的节点 (callback)');
+        console.log(`[handleMisubRequest] callback 内容预览: ${combinedNodeList.substring(0, 200)}`);
+    } else {
+        console.log('[handleMisubRequest] ✗ 本地没有解析到节点，不添加 callback');
     }
-
-    // 对于解析失败的订阅，直接添加原始 URL 让 subconverter 处理
-    subscriptionResults.forEach(result => {
-        if (!result.success && result.url) {
-            urlSources.push(result.url);
-            console.log(`[handleMisubRequest] ✓ 添加失败订阅的原始 URL: ${result.name || result.url}`);
-        }
-    });
 
     // 如果没有任何源，至少添加 callback
     if (urlSources.length === 0) {
