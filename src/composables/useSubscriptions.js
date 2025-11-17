@@ -17,8 +17,7 @@ export function useSubscriptions(initialSubsRef, markDirty, autoSave = null) {
       nodeCount: sub.nodeCount || 0,
       isUpdating: false,
       userInfo: sub.userInfo || null,
-      exclude: sub.exclude || '', // 新增 exclude 属性
-      passThrough: sub.passThrough ?? false,
+      exclude: sub.exclude || '',
     }));
     // [最終修正] 移除此處的自動更新迴圈，以防止本地開發伺服器因併發請求過多而崩潰。
     // subscriptions.value.forEach(sub => handleUpdateNodeCount(sub.id, true)); 
@@ -85,15 +84,9 @@ export function useSubscriptions(initialSubsRef, markDirty, autoSave = null) {
   }
 
   async function addSubscription(sub) {
-    const normalizedSub = {
-      ...sub,
-      passThrough: sub.passThrough ?? false,
-    };
-    subscriptions.value.unshift(normalizedSub);
+    subscriptions.value.unshift(sub);
     subsCurrentPage.value = 1;
-    if (!normalizedSub.passThrough) {
-      await handleUpdateNodeCount(normalizedSub.id); // 新增時自動更新單個
-    }
+    await handleUpdateNodeCount(sub.id); // 新增時自動更新
     markDirty();
     // 自动保存
     if (autoSave) {
@@ -104,19 +97,14 @@ export function useSubscriptions(initialSubsRef, markDirty, autoSave = null) {
   function updateSubscription(updatedSub) {
     const index = subscriptions.value.findIndex(s => s.id === updatedSub.id);
     if (index !== -1) {
-      const normalizedSub = {
-        ...updatedSub,
-        passThrough: updatedSub.passThrough ?? false,
-      };
       const prevSub = subscriptions.value[index];
-      const urlChanged = prevSub.url !== normalizedSub.url;
-      const disabledPassThrough = prevSub.passThrough && !normalizedSub.passThrough;
+      const urlChanged = prevSub.url !== updatedSub.url;
       if (urlChanged) {
-        normalizedSub.nodeCount = 0;
+        updatedSub.nodeCount = 0;
       }
-      subscriptions.value[index] = normalizedSub;
-      if (!normalizedSub.passThrough && (urlChanged || disabledPassThrough)) {
-        handleUpdateNodeCount(normalizedSub.id); // URL 變更或關閉直傳時自動更新單個
+      subscriptions.value[index] = updatedSub;
+      if (urlChanged) {
+        handleUpdateNodeCount(updatedSub.id); // URL 變更時自動更新
       }
       markDirty();
     }
@@ -139,15 +127,11 @@ export function useSubscriptions(initialSubsRef, markDirty, autoSave = null) {
   // {{ AURA-X: Modify - 使用批量更新API优化批量导入. Approval: 寸止(ID:1735459200). }}
   // [优化] 批量導入使用批量更新API，减少KV写入次数
   async function addSubscriptionsFromBulk(subs) {
-    const normalizedSubs = subs.map(sub => ({
-      ...sub,
-      passThrough: sub.passThrough ?? false,
-    }));
-    subscriptions.value.unshift(...normalizedSubs);
+    subscriptions.value.unshift(...subs);
     markDirty();
 
     // 过滤出需要更新的订阅（只有http/https链接）
-    const subsToUpdate = normalizedSubs.filter(sub => sub.url && sub.url.startsWith('http') && !sub.passThrough);
+    const subsToUpdate = subs.filter(sub => sub.url && sub.url.startsWith('http'));
 
     if (subsToUpdate.length > 0) {
       showToast(`正在批量更新 ${subsToUpdate.length} 个订阅...`, 'success');

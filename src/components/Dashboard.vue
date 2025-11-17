@@ -253,7 +253,7 @@ const handleBulkImport = (importText) => {
   const lines = importText.split('\n').map(line => line.trim()).filter(Boolean);
   const newSubs = [], newNodes = [];
   for (const line of lines) {
-      const newItem = { id: crypto.randomUUID(), name: extractNodeName(line) || '未命名', url: line, enabled: true, status: 'unchecked', passThrough: false };
+      const newItem = { id: crypto.randomUUID(), name: extractNodeName(line) || '未命名', url: line, enabled: true, status: 'unchecked' };
       if (/^https?:\/\//.test(line)) {
           newSubs.push(newItem);
       } else if (/^(ss|ssr|vmess|vless|trojan|hysteria2?|hy|hy2|tuic|anytls|socks5):\/\//.test(line)) {
@@ -266,14 +266,14 @@ const handleBulkImport = (importText) => {
 };
 const handleAddSubscription = () => {
   isNewSubscription.value = true;
-  editingSubscription.value = { name: '', url: '', enabled: true, exclude: '', passThrough: false }; // 新增 exclude
+  editingSubscription.value = { name: '', url: '', enabled: true, exclude: '' };
   showSubModal.value = true;
 };
 const handleEditSubscription = (subId) => {
   const sub = subscriptions.value.find(s => s.id === subId);
   if (sub) {
     isNewSubscription.value = false;
-    editingSubscription.value = { ...sub, passThrough: sub.passThrough ?? false };
+    editingSubscription.value = { ...sub };
     showSubModal.value = true;
   }
 };
@@ -467,16 +467,6 @@ const formattedTotalRemainingTraffic = computed(() => formatBytes(totalRemaining
             class="mt-1 block w-full px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md shadow-xs focus:outline-hidden focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm font-mono dark:text-white">
           </textarea>
           <p class="text-xs text-gray-400 mt-1">每行一条规则。使用 `keep:` 切换为白名单模式。</p>
-        </div>
-        <div class="flex items-center justify-between py-2 px-3 bg-gray-100/80 dark:bg-gray-800/60 rounded-xl border border-gray-200 dark:border-gray-700">
-          <div>
-            <p class="text-sm font-medium text-gray-800 dark:text-gray-200">直传模式</p>
-            <p class="text-xs text-gray-500 dark:text-gray-400">跳过本地解析，直接将该订阅交给 subconverter</p>
-          </div>
-          <label class="relative inline-flex items-center cursor-pointer">
-            <input type="checkbox" v-model="editingSubscription.passThrough" class="sr-only peer">
-            <div class="w-11 h-6 bg-gray-200 peer-focus:outline-hidden rounded-full peer dark:bg-gray-600 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-500 peer-checked:bg-indigo-600 dark:peer-checked:bg-green-600"></div>
-          </label>
         </div>
       </div>
     </template>

@@ -1751,10 +1751,6 @@ async function handleMisubRequest(context) {
         effectiveSubConfig = config.subConfig;
     }
 
-    const directSubs = targetMisubs.filter(sub => sub.passThrough);
-    const processedMisubs = targetMisubs.filter(sub => !sub.passThrough);
-    const hasDirectSubs = directSubs.length > 0;
-
     if (!effectiveSubConverter || effectiveSubConverter.trim() === '') {
         return new Response('Subconverter backend is not configured.', { status: 500 });
     }
@@ -1850,12 +1846,12 @@ async function handleMisubRequest(context) {
         context,
         config,
         userAgentHeader,
-        processedMisubs,
+        targetMisubs,
         prependedContentForSubconverter,
         profileIdentifier ? allProfiles.find(p => (p.customId && p.customId === profileIdentifier) || p.id === profileIdentifier)?.prefixSettings : null
     );
 
-    if (targetFormat === 'base64' && !hasDirectSubs) {
+    if (targetFormat === 'base64') {
         let contentToEncode;
         if (isProfileExpired) {
             contentToEncode = DEFAULT_EXPIRED_NODE + '\n'; // Return the expired node link for base64 clients
@@ -1878,24 +1874,32 @@ async function handleMisubRequest(context) {
 
     const subconverterUrl = new URL(`https://${effectiveSubConverter}/sub`);
     subconverterUrl.searchParams.set('target', targetFormat);
-    const shouldIncludeCallbackSource = combinedNodeList.trim().length > 0 || !hasDirectSubs;
+
+    // 构建URL源列表：包含本地解析的callback和所有原始订阅链接
     const urlSources = [];
-    if (shouldIncludeCallbackSource) {
+
+    // 添加本地解析的节点（通过callback）
+    if (combinedNodeList.trim().length > 0) {
         urlSources.push(callbackUrl);
     }
-    directSubs.forEach(sub => {
+
+    // 添加所有原始订阅链接，让subconverter也能直接处理
+    targetMisubs.forEach(sub => {
         if (sub.url && /^https?:\/\//i.test(sub.url)) {
             urlSources.push(sub.url);
         }
     });
+
+    // 如果没有任何源，至少添加callback
     if (urlSources.length === 0) {
         urlSources.push(callbackUrl);
     }
+
     subconverterUrl.searchParams.set('url', urlSources.join('|'));
     if ((targetFormat === 'clash' || targetFormat === 'loon' || targetFormat === 'surge') && effectiveSubConfig && effectiveSubConfig.trim() !== '') {
         subconverterUrl.searchParams.set('config', effectiveSubConfig);
     }
-    subconverterUrl.searchParams.set('new_name', hasDirectSubs ? 'false' : 'true');
+    subconverterUrl.searchParams.set('new_name', 'true');
 
     try {
         const subconverterResponse = await fetch(subconverterUrl.toString(), {

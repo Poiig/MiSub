@@ -100,12 +100,6 @@ const expiryInfo = computed(() => {
           <div class="text-xs font-bold px-2 py-0.5 rounded-full shrink-0" :class="protocolStyle.style">
             {{ protocolStyle.text }}
           </div>
-          <span
-            v-if="misub.passThrough"
-            class="text-[10px] tracking-wide font-semibold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-600 dark:text-amber-300"
-          >
-            直传
-          </span>
         </div>
         <p class="font-bold text-lg text-gray-800 dark:text-gray-100 truncate" :title="misub.name || '未命名订阅'">
           {{ misub.name || '未命名订阅' }}
