@@ -1482,14 +1482,13 @@ async function generateCombinedNodeList(context, config, userAgent, misubs, prep
             let text = await response.text();
 
             // 使用智能解码函数（支持伪装格式如 .iso, .jpg 等）
+            // smartDecodeSubscription 会自动处理 Clash YAML，将其转换为节点列表
             text = smartDecodeSubscription(text);
 
-            // 智能内容类型检测 - 更精确的判断条件
-            if (text.includes('proxies:') && text.includes('rules:')) {
-                // 这是完整的Clash配置文件，不是节点列表
-                return '';
-            } else if (text.includes('outbounds') && text.includes('inbounds') && text.includes('route')) {
+            // 检测是否为 Singbox 配置文件（Clash 已在 smartDecodeSubscription 中处理）
+            if (text.includes('outbounds') && text.includes('inbounds') && text.includes('route')) {
                 // 这是完整的Singbox配置文件，不是节点列表
+                console.log('[generateCombinedNodeList] 检测到 Singbox 完整配置，跳过');
                 return '';
             }
             let validNodes = text.replace(/\r\n/g, '\n').split('\n')
