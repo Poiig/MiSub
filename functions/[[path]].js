@@ -1123,6 +1123,8 @@ async function handleApiRequest(request, env) {
                     cf: { insecureSkipVerify: true }
                 };
 
+                console.log(`[get_nodes] 使用 UA: ${smartUA} for ${subUrl}`);
+
                 try {
                     const response = await Promise.race([
                         fetch(new Request(subUrl, fetchOptions)),
@@ -1458,25 +1460,44 @@ async function generateCombinedNodeList(context, config, userAgent, misubs, prep
     }).join('\n');
 
     const httpSubs = misubs.filter(sub => sub.url.toLowerCase().startsWith('http'));
+
+    // 用于跟踪每个订阅的解析结果
+    const subscriptionResults = [];
+
     const subPromises = httpSubs.map(async (sub) => {
         try {
             // 使用处理后的用户代理
             const processedUserAgent = getProcessedUserAgent(userAgent, sub.url);
-            const requestHeaders = { 'User-Agent': processedUserAgent };
+            const requestHeaders = {
+                'User-Agent': processedUserAgent,
+                'Accept': '*/*',
+                'Accept-Encoding': 'gzip, deflate',
+                'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+                'Cache-Control': 'no-cache',
+                'Pragma': 'no-cache'
+            };
+
+            console.log(`[generateCombinedNodeList] 正在请求: ${sub.url}`);
+            console.log(`[generateCombinedNodeList] 使用 UA: ${processedUserAgent}`);
+
             const response = await Promise.race([
                 fetch(new Request(sub.url, {
                     headers: requestHeaders,
                     redirect: "follow",
                     cf: {
-                        insecureSkipVerify: true,
-                        allowUntrusted: true,
-                        validateCertificate: false
+                        cacheTtl: 0,
+                        cacheEverything: false
                     }
                 })),
-                new Promise((_, reject) => setTimeout(() => reject(new Error('Request timed out')), 8000))
+                new Promise((_, reject) => setTimeout(() => reject(new Error('Request timed out')), 10000))
             ]);
+
+            console.log(`[generateCombinedNodeList] 响应状态: ${response.status} ${response.statusText}`);
+            console.log(`[generateCombinedNodeList] Content-Type: ${response.headers.get('content-type')}`);
+
             if (!response.ok) {
-                console.warn(`订阅请求失败: ${sub.url}, 状态: ${response.status}`);
+                console.error(`[generateCombinedNodeList] 订阅请求失败: ${sub.url}, 状态: ${response.status}`);
+                console.error(`[generateCombinedNodeList] 响应头:`, [...response.headers.entries()]);
                 return '';
             }
             let text = await response.text();
@@ -1632,13 +1653,30 @@ async function generateCombinedNodeList(context, config, userAgent, misubs, prep
                 config.prefixConfig?.enableSubscriptions ??
                 config.prependSubName ?? true;
 
+            // 记录解析结果
+            const hasNodes = validNodes.length > 0;
+            subscriptionResults.push({
+                url: sub.url,
+                name: sub.name,
+                success: hasNodes,
+                nodeCount: validNodes.length
+            });
+
             return (shouldPrependSubscriptions && sub.name)
                 ? validNodes.map(node => prependNodeName(node, sub.name)).join('\n')
                 : validNodes.join('\n');
         } catch (e) {
-            // 订阅处理错误，生成错误节点
-            const errorNodeName = `连接错误-${sub.name || '未知'}`;
-            return `trojan://error@127.0.0.1:8888?security=tls&allowInsecure=1&type=tcp#${encodeURIComponent(errorNodeName)}`;
+            // 订阅处理错误
+            console.error(`[generateCombinedNodeList] 订阅处理失败: ${sub.url}`, e.message);
+            subscriptionResults.push({
+                url: sub.url,
+                name: sub.name,
+                success: false,
+                nodeCount: 0,
+                error: e.message
+            });
+            // 返回空字符串，让 subconverter 直接处理原始 URL
+            return '';
         }
     });
     const processedSubContents = await Promise.all(subPromises);
@@ -1653,9 +1691,14 @@ async function generateCombinedNodeList(context, config, userAgent, misubs, prep
 
     // 将虚假节点（如果存在）插入到列表最前面
     if (prependedContent) {
-        return `${prependedContent}\n${finalNodeList}`;
+        finalNodeList = `${prependedContent}\n${finalNodeList}`;
     }
-    return finalNodeList;
+
+    // 返回节点列表和解析结果
+    return {
+        nodeList: finalNodeList,
+        subscriptionResults: subscriptionResults
+    };
 }
 
 // --- [核心修改] 订阅处理函数 ---
@@ -1841,7 +1884,7 @@ async function handleMisubRequest(context) {
         }
     }
 
-    const combinedNodeList = await generateCombinedNodeList(
+    const { nodeList: combinedNodeList, subscriptionResults } = await generateCombinedNodeList(
         context,
         config,
         userAgentHeader,
@@ -1874,24 +1917,28 @@ async function handleMisubRequest(context) {
     const subconverterUrl = new URL(`https://${effectiveSubConverter}/sub`);
     subconverterUrl.searchParams.set('target', targetFormat);
 
-    // 构建URL源列表：包含本地解析的callback和所有原始订阅链接
+    // 根据解析结果构建 URL 源列表
     const urlSources = [];
 
-    // 添加本地解析的节点（通过callback）
-    if (combinedNodeList.trim().length > 0) {
+    // 如果本地成功解析了节点，添加 callback（包含已重命名的节点）
+    const hasLocalNodes = combinedNodeList.trim().length > 0;
+    if (hasLocalNodes) {
         urlSources.push(callbackUrl);
+        console.log('[handleMisubRequest] 添加本地解析的节点 (callback)');
     }
 
-    // 添加所有原始订阅链接，让subconverter也能直接处理
-    targetMisubs.forEach(sub => {
-        if (sub.url && /^https?:\/\//i.test(sub.url)) {
-            urlSources.push(sub.url);
+    // 对于解析失败的订阅，直接添加原始 URL 让 subconverter 处理
+    subscriptionResults.forEach(result => {
+        if (!result.success && result.url) {
+            urlSources.push(result.url);
+            console.log(`[handleMisubRequest] 添加失败订阅的原始 URL: ${result.url}`);
         }
     });
 
-    // 如果没有任何源，至少添加callback
+    // 如果没有任何源，至少添加 callback
     if (urlSources.length === 0) {
         urlSources.push(callbackUrl);
+        console.log('[handleMisubRequest] 没有任何源，使用 callback 兜底');
     }
 
     subconverterUrl.searchParams.set('url', urlSources.join('|'));

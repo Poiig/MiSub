@@ -220,17 +220,28 @@ function parseNodeInfo(nodeUrl) {
  * 主测试函数
  */
 async function testSubscription(url) {
-	console.log('\n🚀 开始测试订阅链接\n');
+	console.log('\n🚀 开始测试订阅链接');
 	console.log('🔗 订阅URL:', url);
-	console.log('━'.repeat(80));
+	console.log('━'.repeat(80) + '\n');
 
 	try {
 		// 1. 获取订阅内容
-		console.log('\n📡 正在获取订阅内容...\n');
+		console.log('📡 正在获取订阅内容...');
+
+		// 智能选择 User-Agent
+		let userAgent = 'v2rayN/6.45'; // 默认
+		const urlLower = url.toLowerCase();
+		if (urlLower.match(/\.(iso|jpg|jpeg|png|gif|zip|rar|pdf|doc|txt|yaml|yml)(\?|$)/i) ||
+			urlLower.includes('clash') ||
+			urlLower.includes('yaml')) {
+			userAgent = 'v2rayN/6.45';
+		}
+
+		console.log('🔑 使用 User-Agent:', userAgent);
 
 		const response = await fetch(url, {
 			headers: {
-				'User-Agent': 'Clash for Windows/0.20.39'
+				'User-Agent': userAgent
 			},
 			redirect: 'follow'
 		});
@@ -244,50 +255,43 @@ async function testSubscription(url) {
 		}
 
 		const text = await response.text();
-		console.log('\n━'.repeat(80));
 
 		// 2. 智能解码
-		console.log('\n🔄 开始解码处理\n');
+		console.log('\n🔄 开始解码处理');
 		const decoded = smartDecodeSubscription(text);
 
-		console.log('\n━'.repeat(80));
-
 		// 3. 提取节点
-		console.log('\n🔍 提取节点\n');
+		console.log('\n🔍 提取节点');
 		const nodes = extractNodes(decoded);
 
-		console.log('✅ 找到', nodes.length, '个节点');
+		console.log('✅ 找到', nodes.length, '个节点\n');
 
 		if (nodes.length === 0) {
-			console.log('\n❌ 未找到任何有效节点');
+			console.log('❌ 未找到任何有效节点');
 			console.log('\n📋 解码后的内容预览 (前500字符):');
-			console.log('─'.repeat(80));
 			console.log(decoded.substring(0, 500));
-			console.log('─'.repeat(80));
 			return;
 		}
 
 		// 4. 显示节点信息
-		console.log('\n📋 节点列表:\n');
+		console.log('📋 节点列表:');
 		nodes.slice(0, 10).forEach((node, index) => {
 			const info = parseNodeInfo(node);
-			console.log(`${index + 1}. [${info.protocol}] ${info.name}`);
+			console.log(`  ${index + 1}. [${info.protocol}] ${info.name}`);
 		});
 
 		if (nodes.length > 10) {
-			console.log(`\n... 还有 ${nodes.length - 10} 个节点 ...\n`);
+			console.log(`  ... 还有 ${nodes.length - 10} 个节点 ...`);
 		}
 
 		// 5. 显示完整节点（前3个）
-		console.log('\n━'.repeat(80));
-		console.log('\n📝 节点链接示例 (前3个):\n');
+		console.log('\n📝 节点链接示例 (前3个):');
 		nodes.slice(0, 3).forEach((node, index) => {
-			console.log(`${index + 1}. ${node.substring(0, 80)}${node.length > 80 ? '...' : ''}`);
+			console.log(`  ${index + 1}. ${node.substring(0, 80)}${node.length > 80 ? '...' : ''}`);
 		});
 
 		// 6. 统计
-		console.log('\n━'.repeat(80));
-		console.log('\n📊 统计信息:\n');
+		console.log('\n📊 统计信息:');
 		const protocolCount = {};
 		nodes.forEach(node => {
 			const match = node.match(/^(.*?):/);
@@ -296,14 +300,16 @@ async function testSubscription(url) {
 		});
 
 		Object.entries(protocolCount).forEach(([protocol, count]) => {
-			console.log(`   ${protocol}: ${count} 个`);
+			console.log(`  ${protocol}: ${count} 个`);
 		});
 
-		console.log('\n✅ 测试完成！\n');
+		console.log('\n✅ 测试完成！');
 
 	} catch (error) {
 		console.error('\n❌ 测试失败:', error.message);
-		console.error('\n堆栈信息:', error.stack);
+		if (process.env.DEBUG) {
+			console.error('\n堆栈信息:', error.stack);
+		}
 	}
 }
 
@@ -311,10 +317,10 @@ async function testSubscription(url) {
 const url = process.argv[2];
 
 if (!url) {
-	console.log('用法: node test-subscription.js <订阅URL>\n');
-	console.log('示例:');
+	console.log('\n用法: node test-subscription.js <订阅URL>');
+	console.log('\n示例:');
 	console.log('  node test-subscription.js "https://example.com/sub?token=xxx"');
-	console.log('  node test-subscription.js "https://dler.cloud/api/v3/download.getFile/xxx.iso"\n');
+	console.log('  node test-subscription.js "https://dler.cloud/api/v3/download.getFile/xxx.iso"');
 	process.exit(1);
 }
 
