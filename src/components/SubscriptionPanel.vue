@@ -2,6 +2,8 @@
 import { ref, onMounted, onUnmounted } from 'vue';
 import draggable from 'vuedraggable';
 import Card from './Card.vue';
+import NodeListModal from './NodeListModal.vue';
+import { getSubscriptionNodes } from '../lib/api.js';
 
 const props = defineProps({
   subscriptions: Array,
@@ -16,6 +18,13 @@ const emit = defineEmits(['add', 'delete', 'changePage', 'updateNodeCount', 'edi
 const subsMoreMenuRef = ref(null);
 const showSubsMoreMenu = ref(false);
 
+// 节点查看相关状态
+const showNodeListModal = ref(false);
+const selectedSubscription = ref(null);
+const nodeList = ref([]);
+const isLoadingNodes = ref(false);
+const nodeError = ref('');
+
 const handleDelete = (id) => emit('delete', id);
 const handleEdit = (id) => emit('edit', id);
 const handleUpdate = (id) => emit('updateNodeCount', id);
@@ -29,7 +38,47 @@ const handleSortEnd = () => emit('markDirty');
 const handleDeleteAll = () => {
   emit('deleteAll');
   showSubsMoreMenu.value = false;
-}
+};
+
+// 处理查看节点
+const handleViewNodes = async (id) => {
+  const subscription = props.subscriptions.find(s => s.id === id);
+  if (!subscription) return;
+  
+  selectedSubscription.value = subscription;
+  showNodeListModal.value = true;
+  isLoadingNodes.value = true;
+  nodeError.value = '';
+  nodeList.value = [];
+  
+  try {
+    const result = await getSubscriptionNodes(subscription.url);
+    if (result.success) {
+      nodeList.value = result.nodes || [];
+    } else {
+      nodeError.value = result.error || '获取节点列表失败';
+    }
+  } catch (error) {
+    nodeError.value = '获取节点列表时发生错误';
+  } finally {
+    isLoadingNodes.value = false;
+  }
+};
+
+// 关闭节点列表Modal
+const handleCloseNodeListModal = () => {
+  showNodeListModal.value = false;
+  selectedSubscription.value = null;
+  nodeList.value = [];
+  nodeError.value = '';
+};
+
+// 重试获取节点
+const handleRetryGetNodes = () => {
+  if (selectedSubscription.value) {
+    handleViewNodes(selectedSubscription.value.id);
+  }
+};
 
 // 添加点击外部关闭下拉菜单的功能
 const handleClickOutside = (event) => {
@@ -88,7 +137,8 @@ onUnmounted(() => {
                   @delete="handleDelete(subscription.id)" 
                   @change="handleSortEnd" 
                   @update="handleUpdate(subscription.id)" 
-                  @edit="handleEdit(subscription.id)" />
+                  @edit="handleEdit(subscription.id)"
+                  @view-nodes="handleViewNodes(subscription.id)" />
           </div>
         </template>
       </draggable>
@@ -104,7 +154,8 @@ onUnmounted(() => {
                   @delete="handleDelete(subscription.id)" 
                   @change="handleSortEnd" 
                   @update="handleUpdate(subscription.id)" 
-                  @edit="handleEdit(subscription.id)" />
+                  @edit="handleEdit(subscription.id)"
+                  @view-nodes="handleViewNodes(subscription.id)" />
           </div>
       </div>
       <div v-if="totalPages > 1 && !isSorting" class="flex justify-center items-center space-x-4 mt-8 text-sm font-medium">
@@ -114,6 +165,18 @@ onUnmounted(() => {
       </div>
     </div>
     <div v-else class="text-center py-12 text-gray-500 border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-xl"><svg xmlns="http://www.w3.org/2000/svg" class="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1"><path stroke-linecap="round" stroke-linejoin="round" d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z" /></svg><h3 class="mt-4 text-lg font-medium text-gray-900 dark:text-white">没有机场订阅</h3><p class="mt-1 text-sm text-gray-500">从添加你的第一个订阅开始。</p></div>
+    
+    <!-- 节点列表Modal -->
+    <NodeListModal 
+      v-if="selectedSubscription"
+      :isOpen="showNodeListModal"
+      :subscription="selectedSubscription"
+      :nodes="nodeList"
+      :isLoading="isLoadingNodes"
+      :error="nodeError"
+      @close="handleCloseNodeListModal"
+      @retry="handleRetryGetNodes"
+    />
   </div>
 </template>
 

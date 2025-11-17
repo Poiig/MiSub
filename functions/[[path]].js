@@ -401,13 +401,8 @@ async function handleCronTrigger(env) {
 
                 if (nodeCountResult.status === 'fulfilled' && nodeCountResult.value.ok) {
                     const text = await nodeCountResult.value.text();
-                    let decoded = '';
-                    try {
-                        // 嘗試 Base64 解碼
-                        decoded = atob(text.replace(/\s/g, ''));
-                    } catch {
-                        decoded = text;
-                    }
+                    // 使用智能解码函数（支持伪装格式）
+                    const decoded = smartDecodeSubscription(text);
                     const matches = decoded.match(nodeRegex);
                     if (matches) {
                         sub.nodeCount = matches.length; // 更新節點數量
@@ -769,8 +764,8 @@ async function handleApiRequest(request, env) {
                 if (responses[1].status === 'fulfilled' && responses[1].value.ok) {
                     const nodeCountResponse = responses[1].value;
                     const text = await nodeCountResponse.text();
-                    let decoded = '';
-                    try { decoded = atob(text.replace(/\s/g, '')); } catch { decoded = text; }
+                    // 使用智能解码函数（支持伪装格式）
+                    const decoded = smartDecodeSubscription(text);
                     const lineMatches = decoded.match(/^(ss|ssr|vmess|vless|trojan|hysteria2?|hy|hy2|tuic|anytls|socks5):\/\//gm);
                     if (lineMatches) {
                         result.count = lineMatches.length;
@@ -873,12 +868,8 @@ async function handleApiRequest(request, env) {
 
                             // 更新节点数量
                             const text = await response.text();
-                            let decoded = '';
-                            try {
-                                decoded = atob(text.replace(/\s/g, ''));
-                            } catch {
-                                decoded = text;
-                            }
+                            // 使用智能解码函数（支持伪装格式）
+                            const decoded = smartDecodeSubscription(text);
                             const nodeRegex = /^(ss|ssr|vmess|vless|trojan|hysteria2?|hy|hy2|tuic|anytls|socks5):\/\//gm;
                             const matches = decoded.match(nodeRegex);
                             sub.nodeCount = matches ? matches.length : 0;
@@ -949,19 +940,8 @@ async function handleApiRequest(request, env) {
                     const text = await response.text();
                     result.rawContent = text.substring(0, 2000); // 限制原始内容长度
 
-                    // 处理Base64解码
-                    let processedText = text;
-                    try {
-                        const cleanedText = text.replace(/\s/g, '');
-                        if (isValidBase64(cleanedText)) {
-                            const binaryString = atob(cleanedText);
-                            const bytes = new Uint8Array(binaryString.length);
-                            for (let i = 0; i < binaryString.length; i++) { bytes[i] = binaryString.charCodeAt(i); }
-                            processedText = new TextDecoder('utf-8').decode(bytes);
-                        }
-                    } catch (e) {
-                        // Base64解码失败，使用原始内容
-                    }
+                    // 使用智能解码函数（支持伪装格式）
+                    const processedText = smartDecodeSubscription(text);
 
                     result.processedContent = processedText.substring(0, 2000); // 限制处理后内容长度
 
@@ -1033,6 +1013,89 @@ async function handleApiRequest(request, env) {
 
             } catch (e) {
                 return new Response(JSON.stringify({ error: `调试失败: ${e.message}` }), { status: 500 });
+            }
+        }
+
+        case '/get_nodes': {
+            if (request.method !== 'POST') return new Response('Method Not Allowed', { status: 405 });
+            
+            try {
+                const { url: subUrl } = await request.json();
+                if (!subUrl || typeof subUrl !== 'string' || !/^https?:\/\//.test(subUrl)) {
+                    return new Response(JSON.stringify({ error: 'Invalid or missing url' }), { status: 400 });
+                }
+
+                const fetchOptions = {
+                    headers: { 'User-Agent': 'v2rayN/6.45' },
+                    redirect: "follow",
+                    cf: { insecureSkipVerify: true }
+                };
+
+                try {
+                    const response = await Promise.race([
+                        fetch(new Request(subUrl, fetchOptions)),
+                        new Promise((_, reject) => setTimeout(() => reject(new Error('请求超时')), 10000))
+                    ]);
+
+                    if (!response.ok) {
+                        return new Response(JSON.stringify({ 
+                            error: `订阅请求失败: HTTP ${response.status}`,
+                            nodes: []
+                        }), { status: 200 });
+                    }
+
+                    let text = await response.text();
+
+                    // 使用智能解码函数处理订阅内容（支持伪装格式）
+                    const decodedText = smartDecodeSubscription(text);
+
+                    // 智能内容类型检测（在解码后检测）
+                    if (decodedText.includes('proxies:') && decodedText.includes('rules:')) {
+                        return new Response(JSON.stringify({ 
+                            error: '该订阅返回的是 Clash 完整配置文件，不是节点列表。建议使用"直传模式"',
+                            nodes: [],
+                            hint: 'clash_config'
+                        }), { status: 200 });
+                    } else if (decodedText.includes('outbounds') && decodedText.includes('inbounds') && decodedText.includes('route')) {
+                        return new Response(JSON.stringify({ 
+                            error: '该订阅返回的是 Singbox 完整配置文件，不是节点列表',
+                            nodes: [],
+                            hint: 'singbox_config'
+                        }), { status: 200 });
+                    }
+
+                    // 提取节点
+                    const validNodes = decodedText.replace(/\r\n/g, '\n').split('\n')
+                        .map(line => line.trim())
+                        .filter(line => /^(ss|ssr|vmess|vless|trojan|hysteria2?|hy|hy2|tuic|anytls|socks5):\/\//.test(line));
+
+                    if (validNodes.length === 0) {
+                        return new Response(JSON.stringify({ 
+                            error: '未找到任何有效节点。可能原因：1) 订阅链接已失效 2) 返回的是配置文件而非节点列表 3) 订阅格式不支持',
+                            nodes: [],
+                            rawContentPreview: decodedText.substring(0, 500)
+                        }), { status: 200 });
+                    }
+
+                    return new Response(JSON.stringify({ 
+                        success: true,
+                        nodes: validNodes,
+                        count: validNodes.length
+                    }), { headers: { 'Content-Type': 'application/json' } });
+
+                } catch (fetchError) {
+                    return new Response(JSON.stringify({ 
+                        error: `获取订阅失败: ${fetchError.message}`,
+                        nodes: []
+                    }), { status: 200 });
+                }
+
+            } catch (e) {
+                console.error('[API Error /get_nodes]', e);
+                return new Response(JSON.stringify({ 
+                    error: `处理失败: ${e.message}`,
+                    nodes: []
+                }), { status: 500 });
             }
         }
 
@@ -1117,7 +1180,70 @@ function isValidBase64(str) {
     // 先移除所有空白字符(空格、换行、回车等)
     const cleanStr = str.replace(/\s/g, '');
     const base64Regex = /^[A-Za-z0-9+\/=]+$/;
-    return base64Regex.test(cleanStr) && cleanStr.length > 20;
+    // 放宽长度限制，支持更短的内容
+    return base64Regex.test(cleanStr) && cleanStr.length > 10;
+}
+
+/**
+ * 智能解码订阅内容，支持伪装格式
+ * @param {string} text - 原始内容
+ * @returns {string} - 解码后的内容
+ */
+function smartDecodeSubscription(text) {
+    if (!text) return '';
+    
+    // 1. 先尝试按行分割，检查是否已经是节点列表
+    const lines = text.replace(/\r\n/g, '\n').split('\n');
+    const nodeRegex = /^(ss|ssr|vmess|vless|trojan|hysteria2?|hy|hy2|tuic|anytls|socks5):\/\//;
+    const hasNodes = lines.some(line => nodeRegex.test(line.trim()));
+    
+    if (hasNodes) {
+        // 已经是节点列表，直接返回
+        return text;
+    }
+    
+    // 2. 尝试 Base64 解码
+    try {
+        const cleanedText = text.replace(/\s/g, '');
+        if (isValidBase64(cleanedText)) {
+            const binaryString = atob(cleanedText);
+            const bytes = new Uint8Array(binaryString.length);
+            for (let i = 0; i < binaryString.length; i++) {
+                bytes[i] = binaryString.charCodeAt(i);
+            }
+            const decoded = new TextDecoder('utf-8').decode(bytes);
+            
+            // 验证解码后的内容是否包含节点
+            const decodedLines = decoded.replace(/\r\n/g, '\n').split('\n');
+            const hasDecodedNodes = decodedLines.some(line => nodeRegex.test(line.trim()));
+            
+            if (hasDecodedNodes) {
+                return decoded;
+            }
+        }
+    } catch (e) {
+        // Base64 解码失败，继续尝试其他方法
+    }
+    
+    // 3. 如果文本看起来像二进制数据，尝试直接作为 UTF-8 解析
+    if (text.includes('\x00') || text.charCodeAt(0) > 127) {
+        try {
+            const encoder = new TextEncoder();
+            const bytes = encoder.encode(text);
+            const decoded = new TextDecoder('utf-8', { fatal: false }).decode(bytes);
+            const decodedLines = decoded.replace(/\r\n/g, '\n').split('\n');
+            const hasDecodedNodes = decodedLines.some(line => nodeRegex.test(line.trim()));
+            
+            if (hasDecodedNodes) {
+                return decoded;
+            }
+        } catch (e) {
+            // 解析失败
+        }
+    }
+    
+    // 4. 返回原始文本
+    return text;
 }
 
 /**
@@ -1206,6 +1332,9 @@ async function generateCombinedNodeList(context, config, userAgent, misubs, prep
             }
             let text = await response.text();
 
+            // 使用智能解码函数（支持伪装格式如 .iso, .jpg 等）
+            text = smartDecodeSubscription(text);
+
             // 智能内容类型检测 - 更精确的判断条件
             if (text.includes('proxies:') && text.includes('rules:')) {
                 // 这是完整的Clash配置文件，不是节点列表
@@ -1213,17 +1342,6 @@ async function generateCombinedNodeList(context, config, userAgent, misubs, prep
             } else if (text.includes('outbounds') && text.includes('inbounds') && text.includes('route')) {
                 // 这是完整的Singbox配置文件，不是节点列表
                 return '';
-            }
-            try {
-                const cleanedText = text.replace(/\s/g, '');
-                if (isValidBase64(cleanedText)) {
-                    const binaryString = atob(cleanedText);
-                    const bytes = new Uint8Array(binaryString.length);
-                    for (let i = 0; i < binaryString.length; i++) { bytes[i] = binaryString.charCodeAt(i); }
-                    text = new TextDecoder('utf-8').decode(bytes);
-                }
-            } catch (e) {
-                // Base64解码失败，使用原始内容
             }
             let validNodes = text.replace(/\r\n/g, '\n').split('\n')
                 .map(line => line.trim())
