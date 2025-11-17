@@ -1498,6 +1498,14 @@ async function generateCombinedNodeList(context, config, userAgent, misubs, prep
             if (!response.ok) {
                 console.error(`[generateCombinedNodeList] 订阅请求失败: ${sub.url}, 状态: ${response.status}`);
                 console.error(`[generateCombinedNodeList] 响应头:`, [...response.headers.entries()]);
+                // 记录失败的订阅，让 subconverter 尝试处理
+                subscriptionResults.push({
+                    url: sub.url,
+                    name: sub.name,
+                    success: false,
+                    nodeCount: 0,
+                    error: `HTTP ${response.status}`
+                });
                 return '';
             }
             let text = await response.text();
@@ -1510,6 +1518,14 @@ async function generateCombinedNodeList(context, config, userAgent, misubs, prep
             if (text.includes('outbounds') && text.includes('inbounds') && text.includes('route')) {
                 // 这是完整的Singbox配置文件，不是节点列表
                 console.log('[generateCombinedNodeList] 检测到 Singbox 完整配置，跳过');
+                // 记录为失败，让 subconverter 尝试处理
+                subscriptionResults.push({
+                    url: sub.url,
+                    name: sub.name,
+                    success: false,
+                    nodeCount: 0,
+                    error: 'Singbox config detected'
+                });
                 return '';
             }
             let validNodes = text.replace(/\r\n/g, '\n').split('\n')
@@ -1920,27 +1936,34 @@ async function handleMisubRequest(context) {
     // 根据解析结果构建 URL 源列表
     const urlSources = [];
 
+    // 打印解析结果摘要
+    console.log('[handleMisubRequest] 订阅解析结果:');
+    subscriptionResults.forEach(result => {
+        console.log(`  - ${result.name || result.url}: ${result.success ? `✓ ${result.nodeCount} 个节点` : `✗ ${result.error}`}`);
+    });
+
     // 如果本地成功解析了节点，添加 callback（包含已重命名的节点）
     const hasLocalNodes = combinedNodeList.trim().length > 0;
     if (hasLocalNodes) {
         urlSources.push(callbackUrl);
-        console.log('[handleMisubRequest] 添加本地解析的节点 (callback)');
+        console.log('[handleMisubRequest] ✓ 添加本地解析的节点 (callback)');
     }
 
     // 对于解析失败的订阅，直接添加原始 URL 让 subconverter 处理
     subscriptionResults.forEach(result => {
         if (!result.success && result.url) {
             urlSources.push(result.url);
-            console.log(`[handleMisubRequest] 添加失败订阅的原始 URL: ${result.url}`);
+            console.log(`[handleMisubRequest] ✓ 添加失败订阅的原始 URL: ${result.name || result.url}`);
         }
     });
 
     // 如果没有任何源，至少添加 callback
     if (urlSources.length === 0) {
         urlSources.push(callbackUrl);
-        console.log('[handleMisubRequest] 没有任何源，使用 callback 兜底');
+        console.log('[handleMisubRequest] ⚠ 没有任何源，使用 callback 兜底');
     }
 
+    console.log(`[handleMisubRequest] 最终发送给 subconverter 的 URL 数量: ${urlSources.length}`);
     subconverterUrl.searchParams.set('url', urlSources.join('|'));
     if ((targetFormat === 'clash' || targetFormat === 'loon' || targetFormat === 'surge') && effectiveSubConfig && effectiveSubConfig.trim() !== '') {
         subconverterUrl.searchParams.set('config', effectiveSubConfig);
