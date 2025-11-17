@@ -1963,30 +1963,38 @@ async function handleMisubRequest(context) {
         console.log(`  - ${result.name || result.url}: ${result.success ? `✓ ${result.nodeCount} 个节点` : `✗ ${result.error}`}`);
     });
 
-    // 策略：将成功解析的节点（callback）和失败的原始 URL 都发送给 subconverter
-    // 1. 先添加解析失败的订阅原始 URL
-    const failedSubscriptions = subscriptionResults.filter(r => !r.success && r.url);
-    failedSubscriptions.forEach(result => {
-        urlSources.push(result.url);
-        console.log(`[handleMisubRequest] ✓ 添加失败订阅的原始 URL: ${result.name || result.url}`);
-    });
-
-    // 2. 再添加本地成功解析的节点（callback），这样 callback 中的重命名节点会覆盖/补充原始订阅
-    const hasLocalNodes = combinedNodeList.trim().length > 0;
-    console.log(`[handleMisubRequest] hasLocalNodes: ${hasLocalNodes}`);
-
-    if (hasLocalNodes) {
-        urlSources.push(callbackUrl);
-        console.log('[handleMisubRequest] ✓ 添加本地解析的节点 (callback)');
-        console.log(`[handleMisubRequest] callback 内容预览: ${combinedNodeList.substring(0, 200)}`);
+    // 构建发送给 subconverter 的 URL 列表：
+    // 1. callback URL（包含：手动节点 + 所有成功解析的订阅节点）
+    // 2. 失败订阅的原始 URL（让 subconverter 尝试直接获取）
+    
+    // 统计成功和失败的订阅
+    const successCount = subscriptionResults.filter(r => r.success).length;
+    const failedCount = subscriptionResults.filter(r => !r.success).length;
+    const totalNodes = subscriptionResults.reduce((sum, r) => sum + r.nodeCount, 0);
+    
+    console.log(`[handleMisubRequest] 成功解析: ${successCount} 个订阅, ${totalNodes} 个节点`);
+    console.log(`[handleMisubRequest] 解析失败: ${failedCount} 个订阅`);
+    
+    // 1. 先添加 callback（手动节点 + 成功解析的订阅节点）
+    //    即使没有节点也添加，确保手动节点和空订阅也被处理
+    urlSources.push(callbackUrl);
+    console.log('[handleMisubRequest] ✓ 添加 callback URL (手动节点 + 成功解析的订阅)');
+    if (combinedNodeList.trim().length > 0) {
+        console.log(`[handleMisubRequest]   Callback 内容: ${combinedNodeList.length} 字符`);
+        console.log(`[handleMisubRequest]   Callback 预览: ${combinedNodeList.substring(0, 150).replace(/\n/g, ' ')}`);
     } else {
-        console.log('[handleMisubRequest] ✗ 本地没有解析到节点，不添加 callback');
+        console.log('[handleMisubRequest]   Callback 内容: 空（没有手动节点和成功解析的订阅）');
     }
-
-    // 如果没有任何源，至少添加 callback
-    if (urlSources.length === 0) {
-        urlSources.push(callbackUrl);
-        console.log('[handleMisubRequest] ⚠ 没有任何源，使用 callback 兜底');
+    
+    // 2. 再添加失败订阅的原始 URL
+    const failedSubscriptions = subscriptionResults.filter(r => !r.success && r.url);
+    if (failedSubscriptions.length > 0) {
+        failedSubscriptions.forEach(result => {
+            urlSources.push(result.url);
+            console.log(`[handleMisubRequest] ✓ 添加失败订阅的原始 URL: ${result.name || result.url.substring(0, 50)}...`);
+        });
+    } else {
+        console.log('[handleMisubRequest] ℹ 没有失败的订阅需要添加');
     }
 
     console.log(`[handleMisubRequest] 最终发送给 subconverter 的 URL 数量: ${urlSources.length}`);
