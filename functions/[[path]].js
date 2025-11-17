@@ -1123,7 +1123,7 @@ async function handleApiRequest(request, env) {
                     cf: { insecureSkipVerify: true }
                 };
 
-                console.log(`[get_nodes] 使用 UA: ${smartUA} for ${subUrl}`);
+                console.log(`[get_nodes] 使用 UA: v2rayN/6.45 for ${subUrl}`);
 
                 try {
                     const response = await Promise.race([
