@@ -13,7 +13,7 @@ const props = defineProps({
   isSorting: Boolean,
 });
 
-const emit = defineEmits(['add', 'delete', 'changePage', 'updateNodeCount', 'edit', 'toggleSort', 'markDirty']);
+const emit = defineEmits(['add', 'delete', 'changePage', 'updateNodeCount', 'edit', 'toggleSort', 'markDirty', 'autoSave']);
 
 const subsMoreMenuRef = ref(null);
 const showSubsMoreMenu = ref(false);
@@ -55,6 +55,15 @@ const handleViewNodes = async (id) => {
     const result = await getSubscriptionNodes(subscription.url);
     if (result.success) {
       nodeList.value = result.nodes || [];
+      
+      // 回写节点数
+      const nodeCount = result.count || result.nodes?.length || 0;
+      if (subscription.nodeCount !== nodeCount) {
+        subscription.nodeCount = nodeCount;
+        // 自动保存
+        emit('markDirty');
+        emit('autoSave');
+      }
     } else {
       nodeError.value = result.error || '获取节点列表失败';
     }

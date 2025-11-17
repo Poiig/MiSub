@@ -39,7 +39,7 @@ const {
   subscriptions, subsCurrentPage, subsTotalPages, paginatedSubscriptions, totalRemainingTraffic,
   changeSubsPage, addSubscription, updateSubscription, deleteSubscription, deleteAllSubscriptions,
   addSubscriptionsFromBulk, handleUpdateNodeCount,
-} = useSubscriptions(initialSubs, markDirty);
+} = useSubscriptions(initialSubs, markDirty, () => handleSave());
 
 const {
   manualNodes, manualNodesCurrentPage, manualNodesTotalPages, paginatedManualNodes, searchTerm,
@@ -390,6 +390,7 @@ const formattedTotalRemainingTraffic = computed(() => formatBytes(totalRemaining
           @edit="handleEditSubscription"
           @toggle-sort="isSortingSubs = !isSortingSubs"
           @mark-dirty="markDirty"
+          @auto-save="handleSave"
           @delete-all="showDeleteSubsModal = true"
         />
 

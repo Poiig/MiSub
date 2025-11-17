@@ -3,7 +3,7 @@ import { ref, computed, watch } from 'vue';
 import { fetchNodeCount, batchUpdateNodes } from '../lib/api.js';
 import { useToastStore } from '../stores/toast.js';
 
-export function useSubscriptions(initialSubsRef, markDirty) {
+export function useSubscriptions(initialSubsRef, markDirty, autoSave = null) {
   const { showToast } = useToastStore();
   const subscriptions = ref([]);
   const subsCurrentPage = ref(1);
@@ -58,10 +58,6 @@ export function useSubscriptions(initialSubsRef, markDirty) {
   async function handleUpdateNodeCount(subId, isInitialLoad = false) {
     const subToUpdate = subscriptions.value.find(s => s.id === subId);
     if (!subToUpdate || !subToUpdate.url.startsWith('http')) return;
-    if (subToUpdate.passThrough) {
-      showToast('该订阅已开启直传模式，面板不再解析节点', 'info');
-      return;
-    }
     
     if (!isInitialLoad) {
         subToUpdate.isUpdating = true;
@@ -75,6 +71,10 @@ export function useSubscriptions(initialSubsRef, markDirty) {
       if (!isInitialLoad) {
         showToast(`${subToUpdate.name || '订阅'} 更新成功！`, 'success');
         markDirty();
+        // 自动保存
+        if (autoSave) {
+          await autoSave();
+        }
       }
     } catch (error) {
       if (!isInitialLoad) showToast(`${subToUpdate.name || '订阅'} 更新失败`, 'error');
@@ -84,7 +84,7 @@ export function useSubscriptions(initialSubsRef, markDirty) {
     }
   }
 
-  function addSubscription(sub) {
+  async function addSubscription(sub) {
     const normalizedSub = {
       ...sub,
       passThrough: sub.passThrough ?? false,
@@ -92,9 +92,13 @@ export function useSubscriptions(initialSubsRef, markDirty) {
     subscriptions.value.unshift(normalizedSub);
     subsCurrentPage.value = 1;
     if (!normalizedSub.passThrough) {
-      handleUpdateNodeCount(normalizedSub.id); // 新增時自動更新單個
+      await handleUpdateNodeCount(normalizedSub.id); // 新增時自動更新單個
     }
     markDirty();
+    // 自动保存
+    if (autoSave) {
+      await autoSave();
+    }
   }
 
   function updateSubscription(updatedSub) {

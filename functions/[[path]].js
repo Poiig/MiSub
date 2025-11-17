@@ -2,6 +2,98 @@ import yaml from 'js-yaml';
 import { StorageFactory, DataMigrator, STORAGE_TYPES } from './storage-adapter.js';
 
 /**
+ * 将 Clash 代理对象转换为标准节点链接
+ * @param {Object} proxy - Clash 代理对象
+ * @returns {string|null} - 节点链接或 null
+ */
+function clashProxyToNodeLink(proxy) {
+    try {
+        const { name, server, port, type, cipher, password, uuid, tls, network, 'ws-opts': wsOpts } = proxy;
+
+        if (!server || !port) return null;
+
+        // Shadowsocks
+        if (type === 'ss') {
+            if (!cipher || !password) return null;
+            const auth = `${cipher}:${password}`;
+            const encoded = btoa(auth);
+            const nodeName = encodeURIComponent(name || 'SS Node');
+            return `ss://${encoded}@${server}:${port}#${nodeName}`;
+        }
+
+        // VMess
+        if (type === 'vmess') {
+            const vmessConfig = {
+                v: '2',
+                ps: name || 'VMess Node',
+                add: server,
+                port: String(port),
+                id: uuid || '',
+                aid: String(proxy.alterId || 0),
+                scy: proxy.cipher || 'auto',
+                net: network || 'tcp',
+                type: 'none',
+                host: '',
+                path: '',
+                tls: tls ? 'tls' : ''
+            };
+
+            if (network === 'ws' && wsOpts) {
+                vmessConfig.host = wsOpts.headers?.Host || '';
+                vmessConfig.path = wsOpts.path || '';
+            }
+
+            const vmessJson = JSON.stringify(vmessConfig);
+            const encoded = btoa(unescape(encodeURIComponent(vmessJson)));
+            return `vmess://${encoded}`;
+        }
+
+        // Trojan
+        if (type === 'trojan') {
+            if (!password) return null;
+            const nodeName = encodeURIComponent(name || 'Trojan Node');
+            const tlsParam = tls === false ? '' : '?security=tls';
+            return `trojan://${password}@${server}:${port}${tlsParam}#${nodeName}`;
+        }
+
+        // 其他类型暂不支持
+        return null;
+    } catch (e) {
+        console.error('[clashProxyToNodeLink] 转换失败:', e.message);
+        return null;
+    }
+}
+
+/**
+ * 从 Clash YAML 配置中提取节点
+ * @param {string} yamlText - YAML 文本内容
+ * @returns {string[]} - 节点链接数组
+ */
+function extractNodesFromClashYAML(yamlText) {
+    try {
+        const config = yaml.load(yamlText);
+
+        if (!config || !config.proxies || !Array.isArray(config.proxies)) {
+            return [];
+        }
+
+        const nodes = [];
+        for (const proxy of config.proxies) {
+            const nodeLink = clashProxyToNodeLink(proxy);
+            if (nodeLink) {
+                nodes.push(nodeLink);
+            }
+        }
+
+        console.log(`[extractNodesFromClashYAML] 从 Clash 配置中提取了 ${nodes.length} 个节点`);
+        return nodes;
+    } catch (e) {
+        console.error('[extractNodesFromClashYAML] YAML 解析失败:', e.message);
+        return [];
+    }
+}
+
+/**
  * 修复Clash配置中的WireGuard问题
  * @param {string} content - Clash配置内容
  * @returns {string} - 修复后的配置内容
@@ -1018,7 +1110,7 @@ async function handleApiRequest(request, env) {
 
         case '/get_nodes': {
             if (request.method !== 'POST') return new Response('Method Not Allowed', { status: 405 });
-            
+
             try {
                 const { url: subUrl } = await request.json();
                 if (!subUrl || typeof subUrl !== 'string' || !/^https?:\/\//.test(subUrl)) {
@@ -1038,7 +1130,7 @@ async function handleApiRequest(request, env) {
                     ]);
 
                     if (!response.ok) {
-                        return new Response(JSON.stringify({ 
+                        return new Response(JSON.stringify({
                             error: `订阅请求失败: HTTP ${response.status}`,
                             nodes: []
                         }), { status: 200 });
@@ -1046,19 +1138,19 @@ async function handleApiRequest(request, env) {
 
                     let text = await response.text();
 
-                    // 使用智能解码函数处理订阅内容（支持伪装格式）
+                    console.log('[get_nodes] 原始内容长度:', text.length);
+                    console.log('[get_nodes] 原始内容前100字符:', text.substring(0, 100));
+
+                    // 使用智能解码函数处理订阅内容（支持伪装格式和 Clash YAML）
                     const decodedText = smartDecodeSubscription(text);
 
-                    // 智能内容类型检测（在解码后检测）
-                    if (decodedText.includes('proxies:') && decodedText.includes('rules:')) {
-                        return new Response(JSON.stringify({ 
-                            error: '该订阅返回的是 Clash 完整配置文件，不是节点列表。建议使用"直传模式"',
-                            nodes: [],
-                            hint: 'clash_config'
-                        }), { status: 200 });
-                    } else if (decodedText.includes('outbounds') && decodedText.includes('inbounds') && decodedText.includes('route')) {
-                        return new Response(JSON.stringify({ 
-                            error: '该订阅返回的是 Singbox 完整配置文件，不是节点列表',
+                    console.log('[get_nodes] 解码后长度:', decodedText.length);
+                    console.log('[get_nodes] 解码后前100字符:', decodedText.substring(0, 100));
+
+                    // Singbox 配置暂不支持
+                    if (decodedText.includes('outbounds') && decodedText.includes('inbounds') && decodedText.includes('route')) {
+                        return new Response(JSON.stringify({
+                            error: '该订阅返回的是 Singbox 完整配置文件，暂不支持解析。建议使用"直传模式"',
                             nodes: [],
                             hint: 'singbox_config'
                         }), { status: 200 });
@@ -1069,22 +1161,33 @@ async function handleApiRequest(request, env) {
                         .map(line => line.trim())
                         .filter(line => /^(ss|ssr|vmess|vless|trojan|hysteria2?|hy|hy2|tuic|anytls|socks5):\/\//.test(line));
 
+                    console.log('[get_nodes] 找到节点数量:', validNodes.length);
+
                     if (validNodes.length === 0) {
-                        return new Response(JSON.stringify({ 
+                        // 提供更详细的调试信息
+                        const debugInfo = {
+                            originalLength: text.length,
+                            originalPreview: text.substring(0, 200),
+                            decodedLength: decodedText.length,
+                            decodedPreview: decodedText.substring(0, 500),
+                            isBase64: isValidBase64(text.replace(/\s/g, ''))
+                        };
+
+                        return new Response(JSON.stringify({
                             error: '未找到任何有效节点。可能原因：1) 订阅链接已失效 2) 返回的是配置文件而非节点列表 3) 订阅格式不支持',
                             nodes: [],
-                            rawContentPreview: decodedText.substring(0, 500)
+                            debug: debugInfo
                         }), { status: 200 });
                     }
 
-                    return new Response(JSON.stringify({ 
+                    return new Response(JSON.stringify({
                         success: true,
                         nodes: validNodes,
                         count: validNodes.length
                     }), { headers: { 'Content-Type': 'application/json' } });
 
                 } catch (fetchError) {
-                    return new Response(JSON.stringify({ 
+                    return new Response(JSON.stringify({
                         error: `获取订阅失败: ${fetchError.message}`,
                         nodes: []
                     }), { status: 200 });
@@ -1092,7 +1195,7 @@ async function handleApiRequest(request, env) {
 
             } catch (e) {
                 console.error('[API Error /get_nodes]', e);
-                return new Response(JSON.stringify({ 
+                return new Response(JSON.stringify({
                     error: `处理失败: ${e.message}`,
                     nodes: []
                 }), { status: 500 });
@@ -1191,58 +1294,104 @@ function isValidBase64(str) {
  */
 function smartDecodeSubscription(text) {
     if (!text) return '';
-    
+
+    const nodeRegex = /^(ss|ssr|vmess|vless|trojan|hysteria2?|hy|hy2|tuic|anytls|socks5):\/\//;
+
     // 1. 先尝试按行分割，检查是否已经是节点列表
     const lines = text.replace(/\r\n/g, '\n').split('\n');
-    const nodeRegex = /^(ss|ssr|vmess|vless|trojan|hysteria2?|hy|hy2|tuic|anytls|socks5):\/\//;
     const hasNodes = lines.some(line => nodeRegex.test(line.trim()));
-    
+
     if (hasNodes) {
-        // 已经是节点列表，直接返回
+        console.log('[smartDecode] 内容已经是节点列表');
         return text;
     }
-    
-    // 2. 尝试 Base64 解码
+
+    console.log('[smartDecode] 内容不是节点列表，尝试解码...');
+
+    // 2. 检查是否为 Clash YAML 配置文件
+    if (text.includes('proxies:') && (text.includes('port:') || text.includes('mode:'))) {
+        console.log('[smartDecode] 检测到 Clash YAML 配置文件');
+        try {
+            const nodes = extractNodesFromClashYAML(text);
+            if (nodes.length > 0) {
+                console.log(`[smartDecode] 从 Clash 配置提取了 ${nodes.length} 个节点`);
+                return nodes.join('\n');
+            }
+        } catch (e) {
+            console.log('[smartDecode] Clash YAML 解析失败:', e.message);
+        }
+    }
+
+    // 3. 尝试 Base64 解码
     try {
         const cleanedText = text.replace(/\s/g, '');
-        if (isValidBase64(cleanedText)) {
+        const isBase64 = isValidBase64(cleanedText);
+
+        console.log('[smartDecode] Base64 检查:', isBase64);
+        console.log('[smartDecode] 清理后长度:', cleanedText.length);
+
+        if (isBase64) {
+            console.log('[smartDecode] 开始 Base64 解码...');
+
             const binaryString = atob(cleanedText);
             const bytes = new Uint8Array(binaryString.length);
             for (let i = 0; i < binaryString.length; i++) {
                 bytes[i] = binaryString.charCodeAt(i);
             }
-            const decoded = new TextDecoder('utf-8').decode(bytes);
-            
+            const decoded = new TextDecoder('utf-8', { fatal: false }).decode(bytes);
+
+            console.log('[smartDecode] Base64 解码成功，长度:', decoded.length);
+            console.log('[smartDecode] 解码后前100字符:', decoded.substring(0, 100));
+
             // 验证解码后的内容是否包含节点
             const decodedLines = decoded.replace(/\r\n/g, '\n').split('\n');
             const hasDecodedNodes = decodedLines.some(line => nodeRegex.test(line.trim()));
-            
+
+            console.log('[smartDecode] 解码后包含节点:', hasDecodedNodes);
+
             if (hasDecodedNodes) {
                 return decoded;
+            } else {
+                console.log('[smartDecode] 解码后不包含有效节点，检查是否为 Clash 配置');
+                // 解码后可能也是 Clash 配置
+                if (decoded.includes('proxies:')) {
+                    try {
+                        const nodes = extractNodesFromClashYAML(decoded);
+                        if (nodes.length > 0) {
+                            console.log(`[smartDecode] 从 Base64 解码的 Clash 配置提取了 ${nodes.length} 个节点`);
+                            return nodes.join('\n');
+                        }
+                    } catch (e) {
+                        console.log('[smartDecode] Base64 解码后的 Clash YAML 解析失败:', e.message);
+                    }
+                }
             }
         }
     } catch (e) {
-        // Base64 解码失败，继续尝试其他方法
+        console.log('[smartDecode] Base64 解码失败:', e.message);
     }
-    
-    // 3. 如果文本看起来像二进制数据，尝试直接作为 UTF-8 解析
+
+    // 4. 如果文本看起来像二进制数据，尝试直接作为 UTF-8 解析
     if (text.includes('\x00') || text.charCodeAt(0) > 127) {
+        console.log('[smartDecode] 尝试二进制数据解析...');
         try {
             const encoder = new TextEncoder();
             const bytes = encoder.encode(text);
             const decoded = new TextDecoder('utf-8', { fatal: false }).decode(bytes);
             const decodedLines = decoded.replace(/\r\n/g, '\n').split('\n');
             const hasDecodedNodes = decodedLines.some(line => nodeRegex.test(line.trim()));
-            
+
             if (hasDecodedNodes) {
+                console.log('[smartDecode] 二进制解析成功');
                 return decoded;
             }
         } catch (e) {
-            // 解析失败
+            console.log('[smartDecode] 二进制解析失败:', e.message);
         }
     }
-    
-    // 4. 返回原始文本
+
+    // 5. 返回原始文本
+    console.log('[smartDecode] 使用原始文本');
     return text;
 }
 
