@@ -6,6 +6,7 @@
 import { NODE_PROTOCOL_REGEX } from '../utils/node-utils.js';
 import { getProcessedUserAgent } from '../utils/format-utils.js';
 import { prependNodeName } from '../utils/node-utils.js';
+import { smartDecodeSubscription } from '../modules/utils/node-parser.js';
 
 /**
  * 生成组合节点列表
@@ -15,7 +16,7 @@ import { prependNodeName } from '../utils/node-utils.js';
  * @param {Array} misubs - 订阅列表
  * @param {string} prependedContent - 预置内容
  * @param {Object} profilePrefixSettings - 配置文件前缀设置
- * @returns {Promise<string>} - 组合后的节点列表
+ * @returns {Promise<Object>} - 返回 { nodeList: string, subscriptionResults: Array }
  */
 export async function generateCombinedNodeList(context, config, userAgent, misubs, prependedContent = '', profilePrefixSettings = null) {
     // 判断是否启用手动节点前缀
@@ -40,6 +41,10 @@ export async function generateCombinedNodeList(context, config, userAgent, misub
     }).join('\n');
 
     const httpSubs = misubs.filter(sub => sub.url.toLowerCase().startsWith('http'));
+
+    // 用于跟踪每个订阅的解析结果
+    const subscriptionResults = [];
+
     const subPromises = httpSubs.map(async (sub) => {
         try {
             // 使用处理后的用户代理
@@ -59,20 +64,35 @@ export async function generateCombinedNodeList(context, config, userAgent, misub
             ]);
             if (!response.ok) {
                 console.warn(`订阅请求失败: ${sub.url}, 状态: ${response.status}`);
+                // 记录失败的订阅
+                subscriptionResults.push({
+                    url: sub.url,
+                    name: sub.name,
+                    success: false,
+                    nodeCount: 0,
+                    error: `HTTP ${response.status}`
+                });
                 return '';
             }
             let text = await response.text();
 
-            // 智能内容类型检测 - 更精确的判断条件
-            if (text.includes('proxies:') && text.includes('rules:')) {
-                // 这是完整的Clash配置文件，不是节点列表
-                return '';
-            } else if (text.includes('outbounds') && text.includes('inbounds') && text.includes('route')) {
+            // 使用智能解码函数（支持伪装格式、Clash YAML等）
+            // smartDecodeSubscription 会自动处理 Clash YAML，将其转换为节点列表
+            text = smartDecodeSubscription(text);
+
+            // 检测是否为 Singbox 配置文件（Clash 已在 smartDecodeSubscription 中处理）
+            if (text.includes('outbounds') && text.includes('inbounds') && text.includes('route')) {
                 // 这是完整的Singbox配置文件，不是节点列表
+                console.log('[generateCombinedNodeList] 检测到 Singbox 完整配置，跳过');
+                subscriptionResults.push({
+                    url: sub.url,
+                    name: sub.name,
+                    success: false,
+                    nodeCount: 0,
+                    error: 'Singbox config detected'
+                });
                 return '';
             }
-
-            text = await decodeBase64Content(text);
 
             let validNodes = text.replace(/\r\n/g, '\n').split('\n')
                 .map(line => line.trim())
@@ -87,13 +107,35 @@ export async function generateCombinedNodeList(context, config, userAgent, misub
                 config.prefixConfig?.enableSubscriptions ??
                 config.prependSubName ?? true;
 
+            // 记录解析结果 - 只有解析到节点才算成功
+            const hasValidNodes = validNodes.length > 0;
+            subscriptionResults.push({
+                url: sub.url,
+                name: sub.name,
+                success: hasValidNodes,
+                nodeCount: validNodes.length
+            });
+
+            if (!hasValidNodes) {
+                console.log(`[generateCombinedNodeList] 订阅 ${sub.name} 没有有效节点，将由 subconverter 处理`);
+                return '';
+            }
+
             return (shouldPrependSubscriptions && sub.name)
                 ? validNodes.map(node => prependNodeName(node, sub.name)).join('\n')
                 : validNodes.join('\n');
         } catch (e) {
-            // 订阅处理错误，生成错误节点
-            const errorNodeName = `连接错误-${sub.name || '未知'}`;
-            return `trojan://error@127.0.0.1:8888?security=tls&allowInsecure=1&type=tcp#${encodeURIComponent(errorNodeName)}`;
+            // 订阅处理错误
+            console.error(`[generateCombinedNodeList] 订阅处理失败: ${sub.url}`, e.message);
+            subscriptionResults.push({
+                url: sub.url,
+                name: sub.name,
+                success: false,
+                nodeCount: 0,
+                error: e.message
+            });
+            // 返回空字符串，让 subconverter 直接处理原始 URL
+            return '';
         }
     });
 
@@ -109,30 +151,14 @@ export async function generateCombinedNodeList(context, config, userAgent, misub
 
     // 将虚假节点（如果存在）插入到列表最前面
     if (prependedContent) {
-        return `${prependedContent}\n${finalNodeList}`;
+        finalNodeList = `${prependedContent}\n${finalNodeList}`;
     }
-    return finalNodeList;
-}
 
-/**
- * 解码Base64内容
- * @param {string} text - 可能包含Base64的文本
- * @returns {Promise<string>} - 解码后的文本
- */
-async function decodeBase64Content(text) {
-    try {
-        const cleanedText = text.replace(/\s/g, '');
-        const { isValidBase64 } = await import('../utils/format-utils.js');
-        if (isValidBase64(cleanedText)) {
-            const binaryString = atob(cleanedText);
-            const bytes = new Uint8Array(binaryString.length);
-            for (let i = 0; i < binaryString.length; i++) { bytes[i] = binaryString.charCodeAt(i); }
-            return new TextDecoder('utf-8').decode(bytes);
-        }
-    } catch (e) {
-        // Base64解码失败，使用原始内容
-    }
-    return text;
+    // 返回节点列表和解析结果
+    return {
+        nodeList: finalNodeList,
+        subscriptionResults: subscriptionResults
+    };
 }
 
 /**
