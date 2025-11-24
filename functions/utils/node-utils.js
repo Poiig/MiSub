@@ -30,9 +30,9 @@ export const REGION_KEYWORDS = {
 };
 
 /**
- * 节点协议正则表达式
+ * 节点协议正则表达式（不使用全局标志避免lastIndex问题）
  */
-export const NODE_PROTOCOL_REGEX = /^(ss|ssr|vmess|vless|trojan|hysteria2?|hy|hy2|tuic|anytls|socks5):\/\//g;
+export const NODE_PROTOCOL_REGEX = /^(ss|ssr|vmess|vless|trojan|hysteria2?|hy|hy2|tuic|anytls|socks5):\/\//;
 
 /**
  * 为节点名称添加前缀

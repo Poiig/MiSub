@@ -7,9 +7,9 @@ import yaml from 'js-yaml';
 import { parseNodeInfo, extractNodeRegion } from './geo-utils.js';
 
 /**
- * 支持的节点协议正则表达式
+ * 支持的节点协议正则表达式（不使用全局标志避免lastIndex问题）
  */
-export const NODE_PROTOCOL_REGEX = /^(ss|ssr|vmess|vless|trojan|hysteria2?|hy|hy2|tuic|anytls|socks5):\/\//g;
+export const NODE_PROTOCOL_REGEX = /^(ss|ssr|vmess|vless|trojan|hysteria2?|hy|hy2|tuic|anytls|socks5):\/\//;
 
 /**
  * 修复SS节点中的URL编码问题
@@ -157,8 +157,9 @@ export function detectContentType(text) {
         return 'singbox-config';
     }
 
-    // 检查是否包含节点URL
-    const nodeCount = (text.match(NODE_PROTOCOL_REGEX) || []).length;
+    // 检查是否包含节点URL（使用全局正则进行匹配）
+    const nodeRegexGlobal = /^(ss|ssr|vmess|vless|trojan|hysteria2?|hy|hy2|tuic|anytls|socks5):\/\//gm;
+    const nodeCount = (text.match(nodeRegexGlobal) || []).length;
     if (nodeCount > 0) {
         return 'node-list';
     }
