@@ -6,7 +6,7 @@
 import { StorageFactory } from '../../storage-adapter.js';
 import { createJsonResponse } from '../utils.js';
 import { handleSubscriptionNodesRequest } from './subscription-handler.js';
-import { parseNodeList, calculateProtocolStats, calculateRegionStats } from '../utils/node-parser.js';
+import { parseNodeList, calculateProtocolStats, calculateRegionStats, smartDecodeSubscription } from '../utils/node-parser.js';
 
 /**
  * 调试订阅信息和节点内容
@@ -334,33 +334,24 @@ export async function handlePreviewContentRequest(request, env) {
         const rawContent = await response.text();
         const contentLength = rawContent.length;
 
-        // 检测内容类型
-        const isBase64 = /^[A-Za-z0-9+\/=]+$/s.test(rawContent.replace(/\s/g, ''));
-        let decodedContent = rawContent;
+        // 使用智能解码函数（支持伪装格式、Clash YAML等）
+        const decodedContent = smartDecodeSubscription(rawContent);
         let contentInfo = {
             originalLength: contentLength,
-            isBase64,
-            contentType: 'unknown'
+            decodedLength: decodedContent.length,
+            contentType: 'unknown',
+            decodeSuccess: decodedContent !== rawContent
         };
 
-        if (isBase64) {
-            try {
-                const cleanedContent = rawContent.replace(/\s/g, '');
-                const binaryString = atob(cleanedContent);
-                decodedContent = new TextDecoder('utf-8').decode(new Uint8Array([...binaryString].map(c => c.charCodeAt(0))));
-                contentInfo.decodedLength = decodedContent.length;
-                contentInfo.decodeSuccess = true;
-            } catch (e) {
-                contentInfo.decodeError = e.message;
-                contentInfo.decodeSuccess = false;
-            }
-        }
-
         // 检测内容格式
-        if (decodedContent.includes('proxies:') && decodedContent.includes('rules:')) {
+        if (rawContent.includes('proxies:') && rawContent.includes('rules:')) {
             contentInfo.contentType = 'clash-config';
-        } else if (decodedContent.includes('outbounds') && decodedContent.includes('inbounds')) {
+        } else if (rawContent.includes('outbounds') && rawContent.includes('inbounds')) {
             contentInfo.contentType = 'singbox-config';
+        } else if (decodedContent.includes('proxies:') && decodedContent.includes('rules:')) {
+            contentInfo.contentType = 'clash-config (decoded)';
+        } else if (decodedContent.includes('outbounds') && decodedContent.includes('inbounds')) {
+            contentInfo.contentType = 'singbox-config (decoded)';
         } else {
             const nodeMatches = decodedContent.match(/^(ss|ssr|vmess|vless|trojan|hysteria2?|hy|hy2|tuic|anytls|socks5):\/\//gm);
             if (nodeMatches) {

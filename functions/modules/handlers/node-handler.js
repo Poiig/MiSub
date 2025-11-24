@@ -5,6 +5,7 @@
 
 import { StorageFactory } from '../../storage-adapter.js';
 import { createJsonResponse } from '../utils.js';
+import { smartDecodeSubscription } from '../utils/node-parser.js';
 
 /**
  * 获取订阅节点数量和用户信息
@@ -62,12 +63,8 @@ export async function handleNodeCountRequest(request, env) {
             if (responses[1].status === 'fulfilled' && responses[1].value.ok) {
                 const nodeCountResponse = responses[1].value;
                 const text = await nodeCountResponse.text();
-                let decoded = '';
-                try {
-                    decoded = atob(text.replace(/\s/g, ''));
-                } catch {
-                    decoded = text;
-                }
+                // 使用智能解码函数（支持伪装格式、Clash YAML等）
+                const decoded = smartDecodeSubscription(text);
                 const lineMatches = decoded.match(/^(ss|ssr|vmess|vless|trojan|hysteria2?|hy|hy2|tuic|anytls|socks5):\/\//gm);
                 if (lineMatches) {
                     result.count = lineMatches.length;
@@ -153,22 +150,8 @@ export async function handleBatchUpdateNodesRequest(request, env) {
 
                 const text = await response.text();
 
-                // 智能内容类型检测和Base64解码
-                let processedText = text;
-                try {
-                    const cleanedText = text.replace(/\s/g, '');
-                    const base64Regex = /^[A-Za-z0-9+\/=]+$/;
-                    if (base64Regex.test(cleanedText) && cleanedText.length >= 20) {
-                        const binaryString = atob(cleanedText);
-                        const bytes = new Uint8Array(binaryString.length);
-                        for (let i = 0; i < binaryString.length; i++) {
-                            bytes[i] = binaryString.charCodeAt(i);
-                        }
-                        processedText = new TextDecoder('utf-8').decode(bytes);
-                    }
-                } catch (e) {
-                    // 解码失败，使用原始内容
-                }
+                // 使用智能解码函数（支持伪装格式、Clash YAML等）
+                const processedText = smartDecodeSubscription(text);
 
                 // 简单的节点数量统计（不需要完整解析）
                 const nodeCount = (processedText.match(/^(ss|ssr|vmess|vless|trojan|hysteria2?|hy|hy2|tuic|anytls|socks5):\/\//gm) || []).length;

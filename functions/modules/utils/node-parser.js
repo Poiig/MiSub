@@ -3,6 +3,7 @@
  * 提供节点URL解析和处理功能
  */
 
+import yaml from 'js-yaml';
 import { parseNodeInfo, extractNodeRegion } from './geo-utils.js';
 
 /**
@@ -345,4 +346,217 @@ export function cleanNodeName(nodeName) {
         .trim()
         .replace(/\s+/g, ' ') // 合并多余空格
         .replace(/[^\w\s\-_().[\]{}]/g, ''); // 移除特殊字符，保留基本字符
+}
+
+/**
+ * 将 Clash 代理对象转换为标准节点链接
+ * @param {Object} proxy - Clash 代理对象
+ * @returns {string|null} - 节点链接或 null
+ */
+function clashProxyToNodeLink(proxy) {
+    try {
+        const { name, server, port, type, cipher, password, uuid, tls, network, 'ws-opts': wsOpts } = proxy;
+
+        if (!server || !port) return null;
+
+        // Shadowsocks
+        if (type === 'ss') {
+            if (!cipher || !password) return null;
+            const auth = `${cipher}:${password}`;
+            const encoded = btoa(auth);
+            const nodeName = encodeURIComponent(name || 'SS Node');
+            return `ss://${encoded}@${server}:${port}#${nodeName}`;
+        }
+
+        // VMess
+        if (type === 'vmess') {
+            const vmessConfig = {
+                v: '2',
+                ps: name || 'VMess Node',
+                add: server,
+                port: String(port),
+                id: uuid || '',
+                aid: String(proxy.alterId || 0),
+                scy: proxy.cipher || 'auto',
+                net: network || 'tcp',
+                type: 'none',
+                host: '',
+                path: '',
+                tls: tls ? 'tls' : ''
+            };
+
+            if (network === 'ws' && wsOpts) {
+                vmessConfig.host = wsOpts.headers?.Host || '';
+                vmessConfig.path = wsOpts.path || '';
+            }
+
+            const vmessJson = JSON.stringify(vmessConfig);
+            const encoded = btoa(unescape(encodeURIComponent(vmessJson)));
+            return `vmess://${encoded}`;
+        }
+
+        // Trojan
+        if (type === 'trojan') {
+            if (!password) return null;
+            const nodeName = encodeURIComponent(name || 'Trojan Node');
+            const tlsParam = tls === false ? '' : '?security=tls';
+            return `trojan://${password}@${server}:${port}${tlsParam}#${nodeName}`;
+        }
+
+        // 其他类型暂不支持
+        return null;
+    } catch (e) {
+        console.error('[clashProxyToNodeLink] 转换失败:', e.message);
+        return null;
+    }
+}
+
+/**
+ * 从 Clash YAML 配置中提取节点
+ * @param {string} yamlText - YAML 文本内容
+ * @returns {string[]} - 节点链接数组
+ */
+function extractNodesFromClashYAML(yamlText) {
+    try {
+        const config = yaml.load(yamlText);
+
+        if (!config || !config.proxies || !Array.isArray(config.proxies)) {
+            return [];
+        }
+
+        const nodes = [];
+        for (const proxy of config.proxies) {
+            const nodeLink = clashProxyToNodeLink(proxy);
+            if (nodeLink) {
+                nodes.push(nodeLink);
+            }
+        }
+
+        console.log(`[extractNodesFromClashYAML] 从 Clash 配置中提取了 ${nodes.length} 个节点`);
+        return nodes;
+    } catch (e) {
+        console.error('[extractNodesFromClashYAML] YAML 解析失败:', e.message);
+        return [];
+    }
+}
+
+/**
+ * 检测字符串是否为有效的Base64格式
+ * @param {string} str - 要检测的字符串
+ * @returns {boolean} - 是否为有效Base64
+ */
+function isValidBase64(str) {
+    // 先移除所有空白字符(空格、换行、回车等)
+    const cleanStr = str.replace(/\s/g, '');
+    const base64Regex = /^[A-Za-z0-9+\/=]+$/;
+    // 放宽长度限制，支持更短的内容
+    return base64Regex.test(cleanStr) && cleanStr.length > 10;
+}
+
+/**
+ * 智能解码订阅内容，支持伪装格式
+ * @param {string} text - 原始内容
+ * @returns {string} - 解码后的内容
+ */
+export function smartDecodeSubscription(text) {
+    if (!text) return '';
+
+    const nodeRegex = /^(ss|ssr|vmess|vless|trojan|hysteria2?|hy|hy2|tuic|anytls|socks5):\/\//;
+
+    // 1. 先尝试按行分割，检查是否已经是节点列表
+    const lines = text.replace(/\r\n/g, '\n').split('\n');
+    const hasNodes = lines.some(line => nodeRegex.test(line.trim()));
+
+    if (hasNodes) {
+        console.log('[smartDecode] 内容已经是节点列表');
+        return text;
+    }
+
+    console.log('[smartDecode] 内容不是节点列表，尝试解码...');
+
+    // 2. 检查是否为 Clash YAML 配置文件
+    if (text.includes('proxies:') && (text.includes('port:') || text.includes('mode:'))) {
+        console.log('[smartDecode] 检测到 Clash YAML 配置文件');
+        try {
+            const nodes = extractNodesFromClashYAML(text);
+            if (nodes.length > 0) {
+                console.log(`[smartDecode] 从 Clash 配置提取了 ${nodes.length} 个节点`);
+                return nodes.join('\n');
+            }
+        } catch (e) {
+            console.log('[smartDecode] Clash YAML 解析失败:', e.message);
+        }
+    }
+
+    // 3. 尝试 Base64 解码
+    try {
+        const cleanedText = text.replace(/\s/g, '');
+        const isBase64 = isValidBase64(cleanedText);
+
+        console.log('[smartDecode] Base64 检查:', isBase64);
+        console.log('[smartDecode] 清理后长度:', cleanedText.length);
+
+        if (isBase64) {
+            console.log('[smartDecode] 开始 Base64 解码...');
+
+            const binaryString = atob(cleanedText);
+            const bytes = new Uint8Array(binaryString.length);
+            for (let i = 0; i < binaryString.length; i++) {
+                bytes[i] = binaryString.charCodeAt(i);
+            }
+            const decoded = new TextDecoder('utf-8', { fatal: false }).decode(bytes);
+
+            console.log('[smartDecode] Base64 解码成功，长度:', decoded.length);
+            console.log('[smartDecode] 解码后前100字符:', decoded.substring(0, 100));
+
+            // 验证解码后的内容是否包含节点
+            const decodedLines = decoded.replace(/\r\n/g, '\n').split('\n');
+            const hasDecodedNodes = decodedLines.some(line => nodeRegex.test(line.trim()));
+
+            console.log('[smartDecode] 解码后包含节点:', hasDecodedNodes);
+
+            if (hasDecodedNodes) {
+                return decoded;
+            } else {
+                console.log('[smartDecode] 解码后不包含有效节点，检查是否为 Clash 配置');
+                // 解码后可能也是 Clash 配置
+                if (decoded.includes('proxies:')) {
+                    try {
+                        const nodes = extractNodesFromClashYAML(decoded);
+                        if (nodes.length > 0) {
+                            console.log(`[smartDecode] 从 Base64 解码的 Clash 配置提取了 ${nodes.length} 个节点`);
+                            return nodes.join('\n');
+                        }
+                    } catch (e) {
+                        console.log('[smartDecode] Base64 解码后的 Clash YAML 解析失败:', e.message);
+                    }
+                }
+            }
+        }
+    } catch (e) {
+        console.log('[smartDecode] Base64 解码失败:', e.message);
+    }
+
+    // 4. 如果文本看起来像二进制数据，尝试直接作为 UTF-8 解析
+    if (text.includes('\x00') || text.charCodeAt(0) > 127) {
+        console.log('[smartDecode] 尝试二进制数据解析...');
+        try {
+            const encoder = new TextEncoder();
+            const bytes = encoder.encode(text);
+            const decoded = new TextDecoder('utf-8', { fatal: false }).decode(bytes);
+            const decodedLines = decoded.replace(/\r\n/g, '\n').split('\n');
+            const hasDecodedNodes = decodedLines.some(line => nodeRegex.test(line.trim()));
+
+            if (hasDecodedNodes) {
+                console.log('[smartDecode] 二进制解析成功');
+                return decoded;
+            }
+        } catch (e) {
+            console.log('[smartDecode] 二进制解析失败:', e.message);
+        }
+    }
+
+    // 5. 返回原始文本
+    console.log('[smartDecode] 使用原始文本');
+    return text;
 }

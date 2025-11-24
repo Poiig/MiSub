@@ -4,6 +4,7 @@
  */
 
 import { formatBytes } from './utils.js';
+import { smartDecodeSubscription } from './utils/node-parser.js';
 
 /**
  * 发送Telegram基础通知
@@ -225,12 +226,8 @@ export async function handleCronTrigger(env) {
 
                 if (nodeCountResult.status === 'fulfilled' && nodeCountResult.value.ok) {
                     const text = await nodeCountResult.value.text();
-                    let decoded = '';
-                    try {
-                        decoded = atob(text.replace(/\s/g, ''));
-                    } catch {
-                        decoded = text;
-                    }
+                    // 使用智能解码函数（支持伪装格式、Clash YAML等）
+                    const decoded = smartDecodeSubscription(text);
                     const matches = decoded.match(nodeRegex);
                     if (matches) {
                         sub.nodeCount = matches.length; // 更新節點數量

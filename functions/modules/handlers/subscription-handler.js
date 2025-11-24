@@ -6,7 +6,7 @@
 import { StorageFactory } from '../../storage-adapter.js';
 import { createJsonResponse } from '../utils.js';
 import { extractNodeRegion, parseNodeInfo } from '../utils/geo-utils.js';
-import { parseNodeList, calculateProtocolStats, calculateRegionStats } from '../utils/node-parser.js';
+import { parseNodeList, calculateProtocolStats, calculateRegionStats, smartDecodeSubscription } from '../utils/node-parser.js';
 
 /**
  * 常量定义
@@ -45,7 +45,7 @@ async function handleProfileMode(request, env, profileId, userAgent) {
         const isManualNode = !isSubscription;
 
         const belongsToProfile = (isSubscription && profileSubIds.has(item.id)) ||
-                                 (isManualNode && profileNodeIds.has(item.id));
+            (isManualNode && profileNodeIds.has(item.id));
 
         return item.enabled && belongsToProfile;
     });
@@ -213,8 +213,8 @@ async function fetchSubscriptionNodes(url, subscriptionName, userAgent) {
 
         let text = await response.text();
 
-        // 智能内容类型检测和Base64解码
-        const processedText = decodeAndProcessContent(text);
+        // 使用智能解码函数（支持伪装格式、Clash YAML等）
+        const processedText = smartDecodeSubscription(text);
 
         // 解析节点列表
         const parsedNodes = parseNodeList(processedText);
@@ -234,37 +234,6 @@ async function fetchSubscriptionNodes(url, subscriptionName, userAgent) {
             nodes: [],
             error: e.message
         };
-    }
-}
-
-/**
- * 解码和处理内容
- * @param {string} text - 原始文本内容
- * @returns {string} 处理后的文本内容
- */
-function decodeAndProcessContent(text) {
-    try {
-        // 清理空白字符
-        const cleanedText = text.replace(/\s/g, '');
-
-        // 简单的Base64检测
-        const base64Regex = /^[A-Za-z0-9+\/=]+$/;
-        if (!base64Regex.test(cleanedText) || cleanedText.length < 20) {
-            return text;
-        }
-
-        // 尝试Base64解码
-        const binaryString = atob(cleanedText);
-        const bytes = new Uint8Array(binaryString.length);
-        for (let i = 0; i < binaryString.length; i++) {
-            bytes[i] = binaryString.charCodeAt(i);
-        }
-
-        const decodedText = new TextDecoder('utf-8').decode(bytes);
-        return decodedText;
-    } catch (e) {
-        // 解码失败，返回原始内容
-        return text;
     }
 }
 
