@@ -40,7 +40,7 @@ export async function generateCombinedNodeList(context, config, userAgent, misub
         }
     }).join('\n');
 
-    const httpSubs = misubs.filter(sub => sub.url.toLowerCase().startsWith('http'));
+    const httpSubs = misubs.filter(sub => sub.url && sub.url.toLowerCase().startsWith('http'));
 
     // 用于跟踪每个订阅的解析结果
     const subscriptionResults = [];
@@ -63,7 +63,6 @@ export async function generateCombinedNodeList(context, config, userAgent, misub
                 new Promise((_, reject) => setTimeout(() => reject(new Error('Request timed out')), 8000))
             ]);
             if (!response.ok) {
-                console.warn(`订阅请求失败: ${sub.url}, 状态: ${response.status}`);
                 // 记录失败的订阅
                 subscriptionResults.push({
                     url: sub.url,
@@ -83,7 +82,6 @@ export async function generateCombinedNodeList(context, config, userAgent, misub
             // 检测是否为 Singbox 配置文件（Clash 已在 smartDecodeSubscription 中处理）
             if (text.includes('outbounds') && text.includes('inbounds') && text.includes('route')) {
                 // 这是完整的Singbox配置文件，不是节点列表
-                console.log('[generateCombinedNodeList] 检测到 Singbox 完整配置，跳过');
                 subscriptionResults.push({
                     url: sub.url,
                     name: sub.name,
@@ -117,7 +115,6 @@ export async function generateCombinedNodeList(context, config, userAgent, misub
             });
 
             if (!hasValidNodes) {
-                console.log(`[generateCombinedNodeList] 订阅 ${sub.name} 没有有效节点，将由 subconverter 处理`);
                 return '';
             }
 
@@ -126,7 +123,6 @@ export async function generateCombinedNodeList(context, config, userAgent, misub
                 : validNodes.join('\n');
         } catch (e) {
             // 订阅处理错误
-            console.error(`[generateCombinedNodeList] 订阅处理失败: ${sub.url}`, e.message);
             subscriptionResults.push({
                 url: sub.url,
                 name: sub.name,

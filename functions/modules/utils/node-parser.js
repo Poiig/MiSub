@@ -406,7 +406,6 @@ function clashProxyToNodeLink(proxy) {
         // 其他类型暂不支持
         return null;
     } catch (e) {
-        console.error('[clashProxyToNodeLink] 转换失败:', e.message);
         return null;
     }
 }
@@ -432,10 +431,8 @@ function extractNodesFromClashYAML(yamlText) {
             }
         }
 
-        console.log(`[extractNodesFromClashYAML] 从 Clash 配置中提取了 ${nodes.length} 个节点`);
         return nodes;
     } catch (e) {
-        console.error('[extractNodesFromClashYAML] YAML 解析失败:', e.message);
         return [];
     }
 }
@@ -468,23 +465,18 @@ export function smartDecodeSubscription(text) {
     const hasNodes = lines.some(line => nodeRegex.test(line.trim()));
 
     if (hasNodes) {
-        console.log('[smartDecode] 内容已经是节点列表');
         return text;
     }
 
-    console.log('[smartDecode] 内容不是节点列表，尝试解码...');
-
     // 2. 检查是否为 Clash YAML 配置文件
     if (text.includes('proxies:') && (text.includes('port:') || text.includes('mode:'))) {
-        console.log('[smartDecode] 检测到 Clash YAML 配置文件');
         try {
             const nodes = extractNodesFromClashYAML(text);
             if (nodes.length > 0) {
-                console.log(`[smartDecode] 从 Clash 配置提取了 ${nodes.length} 个节点`);
                 return nodes.join('\n');
             }
         } catch (e) {
-            console.log('[smartDecode] Clash YAML 解析失败:', e.message);
+            // Clash YAML 解析失败，继续尝试其他方式
         }
     }
 
@@ -493,12 +485,7 @@ export function smartDecodeSubscription(text) {
         const cleanedText = text.replace(/\s/g, '');
         const isBase64 = isValidBase64(cleanedText);
 
-        console.log('[smartDecode] Base64 检查:', isBase64);
-        console.log('[smartDecode] 清理后长度:', cleanedText.length);
-
         if (isBase64) {
-            console.log('[smartDecode] 开始 Base64 解码...');
-
             const binaryString = atob(cleanedText);
             const bytes = new Uint8Array(binaryString.length);
             for (let i = 0; i < binaryString.length; i++) {
@@ -506,40 +493,32 @@ export function smartDecodeSubscription(text) {
             }
             const decoded = new TextDecoder('utf-8', { fatal: false }).decode(bytes);
 
-            console.log('[smartDecode] Base64 解码成功，长度:', decoded.length);
-            console.log('[smartDecode] 解码后前100字符:', decoded.substring(0, 100));
-
             // 验证解码后的内容是否包含节点
             const decodedLines = decoded.replace(/\r\n/g, '\n').split('\n');
             const hasDecodedNodes = decodedLines.some(line => nodeRegex.test(line.trim()));
 
-            console.log('[smartDecode] 解码后包含节点:', hasDecodedNodes);
-
             if (hasDecodedNodes) {
                 return decoded;
             } else {
-                console.log('[smartDecode] 解码后不包含有效节点，检查是否为 Clash 配置');
                 // 解码后可能也是 Clash 配置
                 if (decoded.includes('proxies:')) {
                     try {
                         const nodes = extractNodesFromClashYAML(decoded);
                         if (nodes.length > 0) {
-                            console.log(`[smartDecode] 从 Base64 解码的 Clash 配置提取了 ${nodes.length} 个节点`);
                             return nodes.join('\n');
                         }
                     } catch (e) {
-                        console.log('[smartDecode] Base64 解码后的 Clash YAML 解析失败:', e.message);
+                        // Base64 解码后的 Clash YAML 解析失败
                     }
                 }
             }
         }
     } catch (e) {
-        console.log('[smartDecode] Base64 解码失败:', e.message);
+        // Base64 解码失败，继续尝试其他方式
     }
 
     // 4. 如果文本看起来像二进制数据，尝试直接作为 UTF-8 解析
     if (text.includes('\x00') || text.charCodeAt(0) > 127) {
-        console.log('[smartDecode] 尝试二进制数据解析...');
         try {
             const encoder = new TextEncoder();
             const bytes = encoder.encode(text);
@@ -548,15 +527,13 @@ export function smartDecodeSubscription(text) {
             const hasDecodedNodes = decodedLines.some(line => nodeRegex.test(line.trim()));
 
             if (hasDecodedNodes) {
-                console.log('[smartDecode] 二进制解析成功');
                 return decoded;
             }
         } catch (e) {
-            console.log('[smartDecode] 二进制解析失败:', e.message);
+            // 二进制解析失败
         }
     }
 
     // 5. 返回原始文本
-    console.log('[smartDecode] 使用原始文本');
     return text;
 }

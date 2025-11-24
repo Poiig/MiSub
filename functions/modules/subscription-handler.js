@@ -5,7 +5,8 @@
 
 import { StorageFactory } from '../storage-adapter.js';
 import { migrateConfigSettings, formatBytes, getCallbackToken } from './utils.js';
-import { generateCombinedNodeList, defaultSettings } from './subscription.js';
+import { defaultSettings } from './subscription.js';
+import { generateCombinedNodeList } from '../services/subscription-service.js';
 import { sendEnhancedTgNotification } from './notifications.js';
 
 // 常量定义
@@ -236,20 +237,15 @@ export async function handleMisubRequest(context) {
     
     // 1. 先添加 callback（手动节点 + 成功解析的订阅节点）
     urlSources.push(callbackUrl);
-    console.log('[handleMisubRequest] ✓ 添加 callback URL (手动节点 + 成功解析的订阅)');
     
     // 2. 再添加失败订阅的原始 URL，让 subconverter 尝试处理
     const failedSubscriptions = subscriptionResults.filter(r => !r.success && r.url);
     if (failedSubscriptions.length > 0) {
         failedSubscriptions.forEach(result => {
             urlSources.push(result.url);
-            console.log(`[handleMisubRequest] ✓ 添加失败订阅的原始 URL: ${result.name || result.url.substring(0, 50)}...`);
         });
-    } else {
-        console.log('[handleMisubRequest] ℹ 没有失败的订阅需要添加');
     }
     
-    console.log(`[handleMisubRequest] 最终发送给 subconverter 的 URL 数量: ${urlSources.length}`);
     subconverterUrl.searchParams.set('url', urlSources.join('|'));
     if ((targetFormat === 'clash' || targetFormat === 'loon' || targetFormat === 'surge') && effectiveSubConfig && effectiveSubConfig.trim() !== '') {
         subconverterUrl.searchParams.set('config', effectiveSubConfig);
@@ -273,7 +269,6 @@ export async function handleMisubRequest(context) {
         responseHeaders.set('Cache-Control', 'no-store, no-cache');
         return new Response(responseText, { status: subconverterResponse.status, statusText: subconverterResponse.statusText, headers: responseHeaders });
     } catch (error) {
-        console.error(`[MiSub Final Error] ${error.message}`);
         return new Response(`Error connecting to subconverter: ${error.message}`, { status: 502 });
     }
 }
