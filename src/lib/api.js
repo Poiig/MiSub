@@ -203,29 +203,3 @@ export async function testSubscription(url, userAgent) {
     }
 }
 
-/**
- * 获取订阅的节点列表
- * @param {string} url - 订阅URL
- * @returns {Promise<Object>} - 节点列表结果
- */
-export async function getSubscriptionNodes(url) {
-    try {
-        const response = await fetch('/api/get_nodes', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ url })
-        });
-
-        if (!response.ok) {
-            const errorData = await response.json().catch(() => ({}));
-            const errorMessage = errorData.message || errorData.error || `服务器错误 (${response.status})`;
-            return { success: false, error: errorMessage, nodes: [] };
-        }
-
-        const result = await response.json();
-        return result;
-    } catch (error) {
-        console.error("Failed to get subscription nodes:", error);
-        return { success: false, error: '网络请求失败，请检查网络连接', nodes: [] };
-    }
-}
