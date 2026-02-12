@@ -4,6 +4,55 @@ const DEFAULT_SUBCONVERTER_FALLBACKS = [
     'sub.xeton.dev'
 ];
 
+const YAML_UNSAFE_CONTROL_CHARS = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/gu;
+
+/**
+ * 清理会破坏 YAML/配置解析的控制字符。
+ * 保留 Unicode 字符（含中文/emoji），避免误伤节点名称。
+ * @param {string} content - 原始配置内容
+ * @returns {{content: string, replacedCount: number}}
+ */
+export function sanitizeConvertedSubscriptionContent(content) {
+    if (typeof content !== 'string' || content.length === 0) {
+        return { content: content || '', replacedCount: 0 };
+    }
+
+    let replacedCount = 0;
+    const sanitized = content.replace(YAML_UNSAFE_CONTROL_CHARS, () => {
+        replacedCount += 1;
+        return '';
+    });
+
+    return { content: sanitized, replacedCount };
+}
+
+/**
+ * 构建返回给客户端的响应头，避免透传与实际响应体不一致的压缩/长度头。
+ * @param {Headers} backendHeaders
+ * @param {string} subName
+ * @param {Object} cacheHeaders
+ * @returns {Headers}
+ */
+export function buildClientResponseHeaders(backendHeaders, subName, cacheHeaders = {}) {
+    const responseHeaders = new Headers(backendHeaders);
+
+    // Node.js fetch 可能已自动解压，但仍保留 content-encoding，
+    // 会导致客户端二次解压报错（如 Clash 的 Filter error, bad data）。
+    responseHeaders.delete('content-encoding');
+    responseHeaders.delete('content-length');
+    responseHeaders.delete('transfer-encoding');
+
+    responseHeaders.set('Content-Disposition', `attachment; filename*=utf-8''${encodeURIComponent(subName)}`);
+    responseHeaders.set('Content-Type', 'text/plain; charset=utf-8');
+    responseHeaders.set('Cache-Control', 'no-store, no-cache');
+
+    Object.entries(cacheHeaders).forEach(([key, value]) => {
+        responseHeaders.set(key, value);
+    });
+
+    return responseHeaders;
+}
+
 /**
  * 构建 SubConverter 请求的基础 URL，兼容带/不带协议的配置
  * @param {string} backend - 用户配置的 SubConverter 地址
@@ -102,7 +151,7 @@ export async function fetchFromSubconverter(candidates, options) {
         cacheHeaders = {},
         enableScv = false,
         enableUdp = false,
-        enableEmoji = false, // [Added]
+        enableEmoji = false,
         timeout = 15000
     } = options;
 
@@ -128,15 +177,12 @@ export async function fetchFromSubconverter(candidates, options) {
                 if (enableUdp) {
                     subconverterUrl.searchParams.set('udp', 'true');
                 }
-                subconverterUrl.searchParams.set('emoji', enableEmoji ? 'true' : 'false'); // [Added]
+                subconverterUrl.searchParams.set('emoji', enableEmoji ? 'true' : 'false');
 
                 if ((targetFormat === 'clash' || targetFormat === 'loon' || targetFormat === 'surge') &&
                     subConfig && subConfig.trim() !== '') {
                     subconverterUrl.searchParams.set('config', subConfig);
                 }
-
-                // [Fixed] Do not force 'new_name=true' as it causes Subconverter to reorder/rename nodes
-                // subconverterUrl.searchParams.set('new_name', 'true');
 
                 // Timeout Control
                 const controller = new AbortController();
@@ -161,15 +207,35 @@ export async function fetchFromSubconverter(candidates, options) {
                 // Success! Prepare Response
                 let responseText = await response.text();
 
-                // [Sanitize Response] Fix YAML syntax errors from Subconverter (e.g. name: * ...)
-                // This happens when Subconverter preserves special chars/emojis corrupted as *
-                // We replace unsafe starting chars in 'name: ...' with safe variants
-                responseText = responseText.replace(/(\bname:\s*)([*])/g, '$1★')
-                    .replace(/(\bname:\s*)([&])/g, '$1＆')
-                    .replace(/(\bname:\s*)([!])/g, '$1！')
-                    .replace(/(\bname:\s*)([#])/g, '$1＃');
+                // [Sanitize Response V9] TRUE Whitelist & Hex Logging
+                let isBase64 = false;
+                let decodedText = responseText;
 
-                // [Debug Logging Response - Forced STDERR]
+                // Simple Base64 detection
+                if (!responseText.includes('\n') && /^[A-Za-z0-9+/=]+$/.test(responseText.trim())) {
+                    try {
+                        const rawDecoded = atob(responseText.trim());
+                        // Verify if it looks like YAML/Config
+                        if (rawDecoded.includes('proxies:') || rawDecoded.includes('name:')) {
+                            decodedText = rawDecoded;
+                            isBase64 = true;
+                        }
+                    } catch (e) {
+                        // Not base64, treat as text
+                    }
+                }
+
+                const { content: sanitizedText, replacedCount } = sanitizeConvertedSubscriptionContent(decodedText);
+                if (replacedCount > 0) {
+                    console.log(`[MiSub Sanitize] Removed ${replacedCount} unsafe control chars in ${isBase64 ? 'Base64' : 'Plain'} content.`);
+                }
+                if (isBase64) {
+                    responseText = btoa(sanitizedText);
+                } else {
+                    responseText = sanitizedText;
+                }
+
+                // [Debug Logging Response]
                 console.log(`[SubConverter Response] Status: ${response.status}`);
                 console.log(`[SubConverter Preview] ${responseText.slice(0, 500)}`);
 
@@ -178,17 +244,7 @@ export async function fetchFromSubconverter(candidates, options) {
                     throw new Error(`Backend returned HTML instead of subscription content: ${responseText.slice(0, 100)}...`);
                 }
 
-                const responseHeaders = new Headers(response.headers);
-
-                // Set Filename
-                responseHeaders.set("Content-Disposition", `attachment; filename*=utf-8''${encodeURIComponent(subName)}`);
-                responseHeaders.set('Content-Type', 'text/plain; charset=utf-8');
-                responseHeaders.set('Cache-Control', 'no-store, no-cache');
-
-                // Pass-through Cache Headers
-                Object.entries(cacheHeaders).forEach(([key, value]) => {
-                    responseHeaders.set(key, value);
-                });
+                const responseHeaders = buildClientResponseHeaders(response.headers, subName, cacheHeaders);
 
                 return {
                     response: new Response(responseText, {
@@ -201,12 +257,10 @@ export async function fetchFromSubconverter(candidates, options) {
 
             } catch (error) {
                 lastError = error;
-                // [Enhanced Logging] 打印完整堆栈和错误详情
+                // [Enhanced Logging]
                 console.log(`[SubConverter Error] Backend: ${subconverterUrl.origin}, URL: ${subconverterUrl.toString()}`);
                 console.log(`[SubConverter Error] Details:`, error);
-
                 console.warn(`[SubConverter] Error with backend ${subconverterUrl.origin}: ${error.message}`);
-                // Continue to next variant/candidate
             }
         }
     }

@@ -155,7 +155,7 @@ export async function generateCombinedNodeList(context, config, userAgent, misub
     // 用户可以在模板中使用 {name} 变量来保留原始信息
     const skipPrefixDueToRenaming = nodeTransformConfig?.enabled && nodeTransformConfig?.rename?.template?.enabled;
 
-    const processedManualNodes = misubs.filter(sub => !sub.url.toLowerCase().startsWith('http')).map(node => {
+    const processedManualNodes = misubs.filter(sub => sub && sub.url && !sub.url.toLowerCase().startsWith('http')).map(node => {
         if (node.isExpiredNode) {
             return node.url; // Directly use the URL for expired node
         } else {
@@ -174,7 +174,7 @@ export async function generateCombinedNodeList(context, config, userAgent, misub
         }
     }).join('\n');
 
-    const httpSubs = misubs.filter(sub => sub.url.toLowerCase().startsWith('http'));
+    const httpSubs = misubs.filter(sub => sub && sub.url && sub.url.toLowerCase().startsWith('http'));
     const limiter = createConcurrencyLimiter(FETCH_CONFIG.CONCURRENCY);
 
     /**
