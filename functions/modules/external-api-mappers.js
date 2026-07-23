@@ -69,6 +69,7 @@ export function toExternalManualNode(item) {
     group: item.group || '',
     tags: Array.isArray(item.tags) ? item.tags : [],
     remarks: item.remarks || '',
+    expiresAt: item.expiresAt || null,
     sortIndex: Number(item.sortIndex) || 0,
     createdAt: item.createdAt || null,
     updatedAt: item.updatedAt || null
@@ -88,6 +89,7 @@ export function toExternalProfile(profile) {
       : [],
     manualNodeIds: Array.isArray(profile.manualNodes) ? profile.manualNodes.filter(Boolean) : [],
     target: profile.target || 'clash',
+    expiresAt: profile.expiresAt || null,
     sortIndex: Number(profile.sortIndex) || 0,
     createdAt: profile.createdAt || null,
     updatedAt: profile.updatedAt || null
@@ -105,5 +107,6 @@ export function toInternalProfilePatch(payload = {}) {
   if ('sortIndex' in payload) internal.sortIndex = payload.sortIndex;
   if ('subscriptionIds' in payload) internal.subscriptions = payload.subscriptionIds;
   if ('manualNodeIds' in payload) internal.manualNodes = payload.manualNodeIds;
+  if ('expiresAt' in payload) internal.expiresAt = payload.expiresAt || '';
   return internal;
 }

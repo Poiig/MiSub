@@ -12,6 +12,7 @@ import {
 } from './external-api-utils.js';
 import { detectNodeProtocol, isManualNode, toExternalManualNode } from './external-api-mappers.js';
 import { parseNodeList } from './utils/node-parser.js';
+import { defaultExpiresAtOneYear } from '../utils/expiry.js';
 
 function nowIso() {
   return new Date().toISOString();
@@ -123,6 +124,8 @@ export async function handleExternalManualNodesRequest(request, env, selector = 
       group: String(payload.group || '').trim(),
       tags: normalizeStringArray(payload.tags),
       remarks: String(payload.remarks || '').trim(),
+      // External 未传有效期时默认一年，与管理台新建行为一致
+      expiresAt: payload.expiresAt || defaultExpiresAtOneYear(),
       sortIndex: Number.isFinite(Number(payload.sortIndex)) ? Number(payload.sortIndex) : nextSortIndex(all),
       createdAt: timestamp,
       updatedAt: timestamp
@@ -143,6 +146,7 @@ export async function handleExternalManualNodesRequest(request, env, selector = 
       ...(payload.group !== undefined ? { group: String(payload.group || '').trim() } : {}),
       ...(payload.tags !== undefined ? { tags: normalizeStringArray(payload.tags) } : {}),
       ...(payload.remarks !== undefined ? { remarks: String(payload.remarks || '').trim() } : {}),
+      ...(payload.expiresAt !== undefined ? { expiresAt: payload.expiresAt || '' } : {}),
       ...(payload.sortIndex !== undefined ? { sortIndex: Number(payload.sortIndex) || 0 } : {}),
       updatedAt: nowIso()
     };

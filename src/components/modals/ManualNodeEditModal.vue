@@ -247,6 +247,20 @@ const protocolColorMap = {
           </div>
         </div>
 
+        <!-- 有效期：拉取时跳过过期节点并自动禁用 -->
+        <div v-if="!isMultiLine" class="relative">
+          <label for="node-expires" class="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5 ml-1 block">
+            {{ t('manualNodes.expiresLabel') }}
+          </label>
+          <input
+            id="node-expires"
+            type="date"
+            v-model="editingNode.expiresAt"
+            class="block w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 misub-radius-md sm:text-sm dark:text-white"
+          >
+          <p class="mt-1 ml-1 text-[11px] text-gray-400 dark:text-gray-500">{{ t('manualNodes.expiresHint') }}</p>
+        </div>
+
         <!-- 节点链接 -->
         <div class="relative group">
           <div 

@@ -8,11 +8,36 @@ import { DEFAULT_SETTINGS } from '../constants/default-settings.js';
 import { TIMING } from '../constants/timing.js';
 import { api } from '../lib/http.js';
 import { t } from '../i18n/index.js';
+import { isExpired } from '../utils/expiry.js';
+import { isManualNodeEntry } from '../composables/manual-nodes/filters.js';
 
 const isDev = import.meta.env.DEV;
 
 // Initialize Cache
 const dataCache = createStorageCache('misub_data_cache', TIMING.CACHE_TTL_MS);
+
+/**
+ * 将已过期但仍启用的手动节点 / 订阅组本地置为 disabled，与拉取链路行为对齐。
+ * @returns {{ subscriptions: Array, profiles: Array, changed: boolean }}
+ */
+function normalizeExpiredEnabledFlags(subs = [], profileList = []) {
+    let changed = false;
+    const subscriptions = subs.map((sub) => {
+        if (!sub?.enabled || !isManualNodeEntry(sub) || !isExpired(sub.expiresAt)) {
+            return sub;
+        }
+        changed = true;
+        return { ...sub, enabled: false };
+    });
+    const profiles = profileList.map((profile) => {
+        if (!profile?.enabled || !isExpired(profile.expiresAt)) {
+            return profile;
+        }
+        changed = true;
+        return { ...profile, enabled: false };
+    });
+    return { subscriptions, profiles, changed };
+}
 
 export const useDataStore = defineStore('data', () => {
     const { showToast } = useToastStore();
@@ -48,23 +73,32 @@ export const useDataStore = defineStore('data', () => {
     // --- Actions ---
 
     // Data Hydration (avoid re-fetching if passed from outside)
+    // 返回值：成功时带 expiryChanged，便于 fetchData 在 clearDirty 后重新标脏
     function hydrateFromData(data) {
-        if (!data) return false;
+        if (!data) return { ok: false, expiryChanged: false };
 
         try {
             const cleanSubs = (data.misubs || []).map(sub => ({ ...sub, isUpdating: false }));
-            subscriptions.value = cleanSubs;
-            profiles.value = data.profiles || [];
+            const normalized = normalizeExpiredEnabledFlags(cleanSubs, data.profiles || []);
+            subscriptions.value = normalized.subscriptions;
+            profiles.value = normalized.profiles;
             ruleTemplates.value = data.ruleTemplates || [];
             settingsStore.setConfig({ ...DEFAULT_SETTINGS, ...data.config });
 
             updateSnapshot();
             lastUpdated.value = new Date();
-            dataCache.set(data);
-            return true;
+            dataCache.set({
+                ...data,
+                misubs: normalized.subscriptions,
+                profiles: normalized.profiles
+            });
+            if (normalized.changed) {
+                markDirty();
+            }
+            return { ok: true, expiryChanged: normalized.changed };
         } catch (error) {
             console.error('hydrateFromData failed:', error);
-            return false;
+            return { ok: false, expiryChanged: false };
         }
     }
 
@@ -90,9 +124,13 @@ export const useDataStore = defineStore('data', () => {
                 throw new Error(data.error);
             }
 
-            hydrateFromData(data); // Re-use hydration logic
+            const { expiryChanged } = hydrateFromData(data);
             pruneInvalidReferences(); // 数据拉取后执行自愈
             clearDirty();
+            // clearDirty 会清掉 hydrate 里的标脏；过期自动禁用仍需提示用户保存
+            if (expiryChanged) {
+                markDirty();
+            }
 
         } catch (error) {
             console.error('Failed to fetch data:', error);

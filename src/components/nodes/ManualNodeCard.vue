@@ -1,6 +1,7 @@
 <script setup>
 import { computed } from 'vue';
 import { useI18n } from '@/i18n/index.js';
+import { isExpired } from '../../utils/expiry.js';
 
 const props = defineProps({
   node: {
@@ -15,6 +16,8 @@ const props = defineProps({
 
 const emit = defineEmits(['delete', 'edit', 'toggle-select', 'filter-group', 'ping']);
 const { t } = useI18n();
+
+const nodeExpired = computed(() => isExpired(props.node?.expiresAt));
 
 const getProtocol = (url) => {
   // ... (protocol logic unchanged)
@@ -105,6 +108,13 @@ const protocolStyle = computed(() => {
       <p class="min-w-0 flex-1 truncate text-sm font-semibold text-gray-900 dark:text-white" :title="node.name">
         {{ node.name || t('manualNodes.unnamed') }}
       </p>
+
+      <span
+        v-if="nodeExpired"
+        class="shrink-0 rounded-md bg-red-100 px-1.5 py-0.5 text-[10px] font-medium text-red-600 dark:bg-red-900/30 dark:text-red-400"
+      >
+        {{ t('manualNodes.expiredBadge') }}
+      </span>
 
       <!-- Ping Result Badge -->
       <div v-if="pingResult" class="flex shrink-0 flex-row items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-medium"

@@ -2,6 +2,7 @@ import { ref } from 'vue';
 import { useToastStore } from '../stores/toast.js';
 import { extractNodeName } from '../lib/utils.js';
 import { generateNodeId } from '../utils/id.js';
+import { defaultExpiresAtDateInput, dateInputToExpiresAt, toDateInputValue } from '../utils/expiry.js';
 import { t } from '../i18n/index.js';
 
 const isDev = import.meta.env.DEV;
@@ -19,7 +20,9 @@ export function useNodeForms({ addNode, updateNode }) {
             name: '',
             url: '',
             enabled: true,
-            colorTag: null
+            colorTag: null,
+            // 表单用 YYYY-MM-DD，保存时再转成日末 ISO
+            expiresAt: defaultExpiresAtDateInput()
         };
         showModal.value = true;
     };
@@ -33,7 +36,10 @@ export function useNodeForms({ addNode, updateNode }) {
             console.debug('UseNodeForms: openEdit called with', node);
         }
         isNew.value = false;
-        editingNode.value = { ...node };
+        editingNode.value = {
+            ...node,
+            expiresAt: toDateInputValue(node.expiresAt)
+        };
         if (isDev) {
             console.debug('UseNodeForms: editingNode set to', editingNode.value);
         }
@@ -54,10 +60,15 @@ export function useNodeForms({ addNode, updateNode }) {
             return;
         }
 
+        const nodeToSave = {
+            ...editingNode.value,
+            expiresAt: dateInputToExpiresAt(editingNode.value.expiresAt)
+        };
+
         if (isNew.value) {
-            addNode(editingNode.value);
+            addNode(nodeToSave);
         } else {
-            updateNode(editingNode.value);
+            updateNode(nodeToSave);
         }
         showModal.value = false;
     };

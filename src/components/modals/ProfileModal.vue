@@ -8,6 +8,7 @@ import { useManualNodes } from '../../composables/useManualNodes.js';
 import { useDataStore } from '../../stores/useDataStore.js';
 import { useSettingsStore } from '../../stores/settings.js';
 import { useI18n } from '@/i18n/index.js';
+import { defaultExpiresAtDateInput } from '../../utils/expiry.js';
 
 const { t } = useI18n();
 const dataStore = useDataStore();
@@ -230,7 +231,7 @@ watch(() => props.profile, (newProfile) => {
       subscriptions: [],
       manualNodes: [],
       customId: '',
-      expiresAt: '',
+      expiresAt: defaultExpiresAtDateInput(),
       isPublic: true,
       description: '',
       prefixSettings: {

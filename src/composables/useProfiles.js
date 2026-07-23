@@ -3,6 +3,7 @@ import { storeToRefs } from 'pinia';
 import { useDataStore } from '../stores/useDataStore';
 import { useToastStore } from '../stores/toast';
 import { generateProfileId } from '../utils/id.js';
+import { defaultExpiresAtDateInput } from '../utils/expiry.js';
 import { t } from '../i18n/index.js';
 
 export function useProfiles(markDirty) {
@@ -53,7 +54,7 @@ export function useProfiles(markDirty) {
       transformConfigMode: 'global', 
       transformConfig: '', 
       ruleLevel: '', 
-      expiresAt: '',
+      expiresAt: defaultExpiresAtDateInput(),
       operators: [] // [New] Initialize operator chain
     };
     showProfileModal.value = true;

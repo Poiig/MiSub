@@ -6,6 +6,7 @@ import { useSettingsStore } from '../stores/settings.js';
 import { useToastStore } from '../stores/toast.js'; // Restored
 import { extractNodeName, extractHostAndPort } from '../lib/utils.js';
 import { pingNode } from '../utils/ping.js';
+import { defaultExpiresAtOneYear } from '../utils/expiry.js';
 import { filterManualNodes, isManualNodeEntry } from './manual-nodes/filters.js';
 import { buildDedupPlan as buildDedupPlanCore } from './manual-nodes/dedup.js';
 import { buildAutoSortedSubscriptions } from './manual-nodes/sorting.js';
@@ -167,6 +168,10 @@ export function useManualNodes(markDirty) {
     for (let i = nodes.length - 1; i >= 0; i--) {
       const node = { ...nodes[i] };
       node.group = normalizeManualNodeGroupName(normalizedGroupName || node.group);
+      // 批量导入未指定有效期时默认一年，避免无期限节点永久留在输出里
+      if (!node.expiresAt) {
+        node.expiresAt = defaultExpiresAtOneYear();
+      }
       dataStore.addSubscription(node);
     }
     markDirty();

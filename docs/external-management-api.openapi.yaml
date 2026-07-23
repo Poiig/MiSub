@@ -1108,6 +1108,9 @@ components:
             type: string
         remarks:
           type: string
+        expiresAt:
+          type: [string, 'null']
+          description: 节点有效期（ISO）。未传时新建默认一年；空表示永不过期。
         sortIndex:
           type: integer
         createdAt:
@@ -1133,6 +1136,9 @@ components:
             type: string
         remarks:
           type: string
+        expiresAt:
+          type: string
+          description: 可选。ISO 有效期；省略则默认一年。
         sortIndex:
           type: integer
     ManualNodePatchInput:
@@ -1151,6 +1157,8 @@ components:
           items:
             type: string
         remarks:
+          type: string
+        expiresAt:
           type: string
         sortIndex:
           type: integer
@@ -1222,6 +1230,9 @@ components:
             type: string
         target:
           type: string
+        expiresAt:
+          type: [string, 'null']
+          description: 订阅组有效期（ISO）
         sortIndex:
           type: integer
         createdAt:
@@ -1253,6 +1264,8 @@ components:
         target:
           type: string
           default: clash
+        expiresAt:
+          type: string
         sortIndex:
           type: integer
     ProfilePatchInput:
@@ -1277,6 +1290,8 @@ components:
           items:
             type: string
         target:
+          type: string
+        expiresAt:
           type: string
         sortIndex:
           type: integer

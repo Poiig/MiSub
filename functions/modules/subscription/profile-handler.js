@@ -7,6 +7,7 @@ import { runOperatorChain } from '../../utils/operator-runner.js';
 import { KV_KEY_SUBS, KV_KEY_PROFILES, KV_KEY_SETTINGS, DEFAULT_SETTINGS } from '../config.js';
 import { fetchSubscriptionNodes } from './node-fetcher.js';
 import { applyManualNodeName } from '../utils/node-cleaner.js';
+import { shouldSkipExpiredManualNode } from '../../utils/expiry.js';
 
 function ensureArray(data) {
     if (!data) return [];
@@ -119,12 +120,12 @@ export async function handleProfileMode(request, env, profileId, userAgent, appl
         });
     }
 
-    // 2. Add manual nodes in order defined by profile
+    // 2. Add manual nodes in order defined by profile（过期节点不进入预览）
     const profileNodeIds = profile.manualNodes || [];
     if (Array.isArray(profileNodeIds)) {
         profileNodeIds.forEach(id => {
             const node = misubMap.get(id);
-            if (node && node.enabled && !node.url.startsWith('http')) {
+            if (node && node.enabled && !node.url.startsWith('http') && !shouldSkipExpiredManualNode(node)) {
                 targetMisubs.push(node);
             }
         });

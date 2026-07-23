@@ -104,6 +104,7 @@ D1 当前采用“行级 JSON”结构：
 - `url`：节点原始 URL，通常不是 `http(s)`。
 - `group`：手动节点分组。
 - `status`：导入/检查状态，批量导入时默认 `unchecked`。
+- `expiresAt`：节点有效期（ISO 字符串）。新建与批量导入默认一年；空值表示永不过期。拉取订阅时跳过已过期节点，并自动将 `enabled` 置为 `false`。
 
 运行时字段：
 
@@ -132,7 +133,7 @@ D1 当前采用“行级 JSON”结构：
 - `manualNodes`：手动节点 ID 列表。
 - `sortIndex`：保存时按数组顺序写入。
 - `downloadCount`：展示用下载次数；读取时会从 `misub_profile_download_count_<id>` 叠加。
-- `expiresAt`：订阅组过期时间。
+- `expiresAt`：订阅组过期时间。新建订阅组时默认一年；过期后输出「您的订阅已到期」伪节点，并将 `enabled` 置为 `false`。
 
 输出与转换相关字段：
 

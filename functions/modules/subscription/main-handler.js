@@ -20,6 +20,7 @@ import { shouldApplyExternalTemplateForTarget } from './template-compatibility.j
 import { renderClashFromIniTemplate, renderLoonFromIniTemplate, renderQuanxFromIniTemplate, renderSingboxFromIniTemplate, renderSurgeFromIniTemplate } from './template-pipeline.js';
 import { getBuiltinTemplate } from './builtin-template-registry.js';
 import { assertPublicNetworkUrl } from '../security-utils.js';
+import { isExpired, persistExpiryDisables, shouldSkipExpiredManualNode } from '../../utils/expiry.js';
 
 function maskSensitiveLogValue(value) {
     const text = String(value ?? '');
@@ -445,58 +446,68 @@ export async function handleMisubRequest(context) {
         }
         currentProfile = allProfiles.find(p => (p.customId && p.customId === profileIdentifier) || p.id === profileIdentifier);
         const profile = currentProfile;
-        if (profile && profile.enabled) {
-            // Check if the profile has an expiration date and if it's expired
-            if (profile.expiresAt) {
-                const expiryDate = new Date(profile.expiresAt);
-                const now = new Date();
-                if (now > expiryDate) {
-                    isProfileExpired = true;
-                }
+        // 过期优先于 enabled：仍返回到期伪节点，同时写回禁用，避免二次拉取变成纯 404
+        if (profile && isExpired(profile.expiresAt)) {
+            isProfileExpired = true;
+            subName = profile.name;
+            targetMisubs = [{ id: 'expired-node', url: DEFAULT_EXPIRED_NODE, name: '您的订阅已到期', isExpiredNode: true }];
+            if (profile.enabled !== false) {
+                context.waitUntil(
+                    persistExpiryDisables(storageAdapter, { profileIds: [profile.id] })
+                        .catch(err => console.error('[Expiry] Failed to disable expired profile:', err))
+                );
+            }
+        } else if (profile && profile.enabled) {
+            subName = profile.name;
+            targetMisubs = [];
+            const expiredManualNodeIds = [];
+            const relatedIds = [
+                ...(Array.isArray(profile.subscriptions) ? profile.subscriptions.map(item => typeof item === 'object' ? item.id : item) : []),
+                ...(Array.isArray(profile.manualNodes) ? profile.manualNodes : [])
+            ].filter(Boolean);
+            const relatedSubs = typeof storageAdapter.getSubscriptionsByIds === 'function'
+                ? await storageAdapter.getSubscriptionsByIds(Array.from(new Set(relatedIds)))
+                : allMisubs;
+            const misubMap = new Map(relatedSubs.map(item => [item.id, item]));
+
+            // 1. Add subscriptions in order defined by profile
+            const profileSubIds = profile.subscriptions || [];
+            if (Array.isArray(profileSubIds)) {
+                profileSubIds.forEach(item => {
+                    // 支持两种格式：纯字符串 ID 或 带有覆盖配置的对象 { id, exclude, operators, ... }
+                    const isObject = item && typeof item === 'object';
+                    const id = isObject ? item.id : item;
+                    
+                    const baseSub = misubMap.get(id);
+                    if (baseSub && baseSub.enabled && typeof baseSub.url === 'string' && baseSub.url.startsWith('http')) {
+                        // 如果是对象，则合并覆盖配置（Profile 级别的设置优先级更高）
+                        const sub = isObject ? { ...baseSub, ...item } : baseSub;
+                        targetMisubs.push(sub);
+                    }
+                });
             }
 
-            if (isProfileExpired) {
-                subName = profile.name; // Still use profile name for filename
-                targetMisubs = [{ id: 'expired-node', url: DEFAULT_EXPIRED_NODE, name: '您的订阅已到期', isExpiredNode: true }]; // Set expired node as the only targetMisub
-            } else {
-                subName = profile.name;
-                targetMisubs = [];
-                const relatedIds = [
-                    ...(Array.isArray(profile.subscriptions) ? profile.subscriptions.map(item => typeof item === 'object' ? item.id : item) : []),
-                    ...(Array.isArray(profile.manualNodes) ? profile.manualNodes : [])
-                ].filter(Boolean);
-                const relatedSubs = typeof storageAdapter.getSubscriptionsByIds === 'function'
-                    ? await storageAdapter.getSubscriptionsByIds(Array.from(new Set(relatedIds)))
-                    : allMisubs;
-                const misubMap = new Map(relatedSubs.map(item => [item.id, item]));
+            // 2. Add manual nodes in order defined by profile（过期节点跳过并记录待禁用）
+            const profileNodeIds = profile.manualNodes || [];
+            if (Array.isArray(profileNodeIds)) {
+                profileNodeIds.forEach(id => {
+                    const node = misubMap.get(id);
+                    if (!node || typeof node.url !== 'string' || node.url.startsWith('http')) return;
+                    if (shouldSkipExpiredManualNode(node)) {
+                        if (node.enabled !== false) expiredManualNodeIds.push(node.id);
+                        return;
+                    }
+                    if (node.enabled) {
+                        targetMisubs.push(node);
+                    }
+                });
+            }
 
-                // 1. Add subscriptions in order defined by profile
-                const profileSubIds = profile.subscriptions || [];
-                if (Array.isArray(profileSubIds)) {
-                    profileSubIds.forEach(item => {
-                        // 支持两种格式：纯字符串 ID 或 带有覆盖配置的对象 { id, exclude, operators, ... }
-                        const isObject = item && typeof item === 'object';
-                        const id = isObject ? item.id : item;
-                        
-                        const baseSub = misubMap.get(id);
-                        if (baseSub && baseSub.enabled && typeof baseSub.url === 'string' && baseSub.url.startsWith('http')) {
-                            // 如果是对象，则合并覆盖配置（Profile 级别的设置优先级更高）
-                            const sub = isObject ? { ...baseSub, ...item } : baseSub;
-                            targetMisubs.push(sub);
-                        }
-                    });
-                }
-
-                // 2. Add manual nodes in order defined by profile
-                const profileNodeIds = profile.manualNodes || [];
-                if (Array.isArray(profileNodeIds)) {
-                    profileNodeIds.forEach(id => {
-                        const node = misubMap.get(id);
-                        if (node && node.enabled && typeof node.url === 'string' && !node.url.startsWith('http')) {
-                            targetMisubs.push(node);
-                        }
-                    });
-                }
+            if (expiredManualNodeIds.length > 0) {
+                context.waitUntil(
+                    persistExpiryDisables(storageAdapter, { subscriptionIds: expiredManualNodeIds })
+                        .catch(err => console.error('[Expiry] Failed to disable expired manual nodes:', err))
+                );
             }
             // [新增] 增加订阅组下载计数
             // 仅在非回调请求时及非内部请求时增加计数(避免重复计数)
@@ -523,7 +534,21 @@ export async function handleMisubRequest(context) {
         if (!token || token !== config.mytoken) {
             return new Response('Invalid Token', { status: 403 });
         }
-        targetMisubs = allMisubs.filter(s => s.enabled);
+        const expiredManualNodeIds = [];
+        targetMisubs = allMisubs.filter(s => {
+            if (!s.enabled) return false;
+            if (shouldSkipExpiredManualNode(s)) {
+                expiredManualNodeIds.push(s.id);
+                return false;
+            }
+            return true;
+        });
+        if (expiredManualNodeIds.length > 0) {
+            context.waitUntil(
+                persistExpiryDisables(storageAdapter, { subscriptionIds: expiredManualNodeIds })
+                    .catch(err => console.error('[Expiry] Failed to disable expired manual nodes:', err))
+            );
+        }
     }
 
     // 使用统一的确定目标格式的方法（此方法中包含了处理各类客户端如 Surge 等对应版本的最新支持规则）

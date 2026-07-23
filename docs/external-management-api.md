@@ -253,6 +253,7 @@ Content-Type: application/json
   "group": "HK",
   "tags": ["manual"],
   "remarks": "",
+  "expiresAt": "2027-07-23T15:59:59.999Z",
   "sortIndex": 2,
   "createdAt": "2026-07-10T18:00:00.000Z",
   "updatedAt": "2026-07-10T18:00:00.000Z"
@@ -272,6 +273,7 @@ Content-Type: application/json
   "subscriptionIds": ["sub_1"],
   "manualNodeIds": ["node_1"],
   "target": "clash",
+  "expiresAt": "2027-07-23T15:59:59.999Z",
   "sortIndex": 1,
   "createdAt": "2026-07-10T18:00:00.000Z",
   "updatedAt": "2026-07-10T18:00:00.000Z"
