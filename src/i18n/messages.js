@@ -111,7 +111,10 @@ export const messages = {
       advancedTitle: '核心配置与高级设置',
       globalDefault: '默认(全局)',
       optionEnabled: '启用',
-      optionDisabled: '禁用'
+      optionDisabled: '禁用',
+      renew: '续期',
+      renewOneYear: '续期一年',
+      renewed: '已续期一年并重新启用'
     },
     profileModal: {
       builtinEngine: '内置渲染引擎',
@@ -217,6 +220,10 @@ export const messages = {
       expiresLabel: '有效期',
       expiresHint: '到期后拉取时自动跳过并禁用；清空表示永不过期',
       expiredBadge: '已过期',
+      renew: '续期',
+      renewOneYear: '续期一年',
+      renewed: '已续期一年并重新启用',
+      addressLabel: '地址',
       addTitle: '新增手动节点',
       editTitle: '编辑手动节点',
       modalDescription: '支持单条编辑，也支持多行粘贴后批量导入节点。',
@@ -1314,7 +1321,10 @@ export const messages = {
       advancedTitle: 'Core config & advanced settings',
       globalDefault: 'Default (global)',
       optionEnabled: 'Enabled',
-      optionDisabled: 'Disabled'
+      optionDisabled: 'Disabled',
+      renew: 'Renew',
+      renewOneYear: 'Renew for one year',
+      renewed: 'Renewed for one year and re-enabled'
     },
     profileModal: {
       builtinEngine: '内置渲染引擎',
@@ -1484,6 +1494,10 @@ export const messages = {
       expiresLabel: 'Expiry',
       expiresHint: 'Expired nodes are skipped on pull and auto-disabled; leave empty for never',
       expiredBadge: 'Expired',
+      renew: 'Renew',
+      renewOneYear: 'Renew for one year',
+      renewed: 'Renewed for one year and re-enabled',
+      addressLabel: 'Address',
       addTitle: 'Add manual node',
       editTitle: 'Edit manual node',
       modalDescription: 'Edit a single node, or paste multiple lines to import nodes in bulk.',

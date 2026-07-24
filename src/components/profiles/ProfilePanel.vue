@@ -26,7 +26,7 @@ const props = defineProps({
   },
 });
 
-const emit = defineEmits(['add', 'edit', 'delete', 'deleteAll', 'toggle', 'openCopy', 'preview', 'reorder', 'changePage', 'viewLogs', 'qrcode', 'toggle-sort']);
+const emit = defineEmits(['add', 'edit', 'delete', 'deleteAll', 'toggle', 'renew', 'openCopy', 'preview', 'reorder', 'changePage', 'viewLogs', 'qrcode', 'toggle-sort']);
 
 const displayProfiles = computed(() => {
   if (props.isSorting) {
@@ -46,6 +46,7 @@ const displayProfiles = computed(() => {
 const handleEdit = (profileId) => emit('edit', profileId);
 const handleDelete = (profileId) => emit('delete', profileId);
 const handleToggle = (event) => emit('toggle', event);
+const handleRenew = (event) => emit('renew', event);
 const handleOpenCopy = (profileId) => emit('openCopy', profileId);
 const handlePreview = (profileId) => emit('preview', profileId);
 const handleAdd = () => emit('add');
@@ -114,6 +115,7 @@ const handleMoveDown = (profileId) => {
             @edit="handleEdit(profile.id)"
             @delete="handleDelete(profile.id)"
             @change="handleToggle($event)"
+            @renew="handleRenew($event)"
             @preview="handlePreview(profile.id)"
             @qrcode="handleQRCode(profile.id)"
             @move-up="handleMoveUp(profile.id)"

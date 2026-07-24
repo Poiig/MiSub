@@ -116,7 +116,7 @@ const {
 
 const {
   manualNodes, manualNodesCurrentPage, manualNodesTotalPages, paginatedManualNodes, searchTerm,
-  changeManualNodesPage, addNode, updateNode, deleteNode, deleteAllNodes,
+  changeManualNodesPage, addNode, updateNode, renewNode, deleteNode, deleteAllNodes,
   addNodesFromBulk, autoSortNodes, deduplicateNodes,
   reorderManualNodes, activeGroupFilter, setGroupFilter, batchUpdateGroup, batchDeleteNodes, buildDedupPlan, applyDedupPlan,
   manualNodeGroups, renameGroup, deleteGroup, reorderGroups, // Added group helpers
@@ -129,7 +129,7 @@ const handleSearchTermUpdate = (val) => {
 
 const {
   profiles, editingProfile, isNewProfile, showProfileModal, showDeleteProfilesModal,
-  initializeProfiles, handleProfileToggle, handleAddProfile, handleEditProfile,
+  initializeProfiles, handleProfileToggle, handleProfileRenew, handleAddProfile, handleEditProfile,
   handleSaveProfile, handleDeleteProfile, handleDeleteAllProfiles, copyProfileLink, copyClashLink,
   cleanupSubscriptions, cleanupNodes, cleanupAllSubscriptions, cleanupAllNodes,
 } = useProfiles(markDirty);
@@ -443,6 +443,7 @@ import SavePrompt from '../../ui/SavePrompt.vue';
           :compact-grid="true"
           @add="handleAddNode" @delete="handleDeleteNodeWithCleanup"
           @edit="(id) => handleEditNode(manualNodes.find(n => n.id === id))" @change-page="changeManualNodesPage"
+          @change="updateNode" @renew="renewNode"
           @update:search-term="handleSearchTermUpdate" @update:view-mode="setViewMode"
           @toggle-sort="isSortingNodes = !isSortingNodes" @mark-dirty="markDirty" @auto-sort="handleAutoSortNodes"
           @deduplicate="handleDeduplicateNodes" @import="showSubscriptionImportModal = true"
@@ -458,7 +459,7 @@ import SavePrompt from '../../ui/SavePrompt.vue';
       <div class="space-y-6 lg:space-y-7 xl:col-span-1">
         <RightPanel :config="config" :profiles="profiles" :compact="true" @qrcode="(url, title) => { qrCodeUrl = url; qrCodeTitle = title; showQRCodeModal = true; }" />
         <ProfilePanel :profiles="profiles" :compact="true" :is-sorting="isSortingProfiles" @add="handleAddProfile" @edit="handleEditProfile"
-          @delete="handleDeleteProfile" @deleteAll="showDeleteProfilesModal = true" @toggle="handleProfileToggle"
+          @delete="handleDeleteProfile" @deleteAll="showDeleteProfilesModal = true" @toggle="handleProfileToggle" @renew="handleProfileRenew"
           @open-copy="handleOpenCopy" @copyLink="copyProfileLink" @copyClashLink="copyClashLink" @preview="handlePreviewProfile" @viewLogs="handleViewLogs" @reorder="handleProfileReorder" 
           @qrcode="(id) => handleQRCode(id, 'profile')" @toggle-sort="isSortingProfiles = !isSortingProfiles" />
       </div>

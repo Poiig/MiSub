@@ -85,6 +85,21 @@ export function defaultExpiresAtDateInput(from = new Date()) {
 }
 
 /**
+ * 续期一年：未过期则从当前到期日往后延；已过期或无值则从今天起算一年。
+ * @param {string|null|undefined} expiresAt
+ * @param {Date} [from]
+ * @returns {string} ISO
+ */
+export function extendExpiresAtByOneYear(expiresAt, from = new Date()) {
+    const base = expiresAt && !isExpired(expiresAt, from)
+        ? new Date(expiresAt)
+        : new Date(from);
+    base.setFullYear(base.getFullYear() + 1);
+    base.setHours(23, 59, 59, 999);
+    return base.toISOString();
+}
+
+/**
  * 将 date input 的 YYYY-MM-DD 转为当天结束时刻的 ISO，与订阅组保存习惯对齐。
  * @param {string|null|undefined} dateInput
  * @returns {string}

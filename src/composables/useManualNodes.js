@@ -6,7 +6,7 @@ import { useSettingsStore } from '../stores/settings.js';
 import { useToastStore } from '../stores/toast.js'; // Restored
 import { extractNodeName, extractHostAndPort } from '../lib/utils.js';
 import { pingNode } from '../utils/ping.js';
-import { defaultExpiresAtOneYear } from '../utils/expiry.js';
+import { defaultExpiresAtOneYear, extendExpiresAtByOneYear } from '../utils/expiry.js';
 import { filterManualNodes, isManualNodeEntry } from './manual-nodes/filters.js';
 import { buildDedupPlan as buildDedupPlanCore } from './manual-nodes/dedup.js';
 import { buildAutoSortedSubscriptions } from './manual-nodes/sorting.js';
@@ -131,6 +131,19 @@ export function useManualNodes(markDirty) {
     // Update in shared store
     dataStore.updateSubscription(normalizedNode.id, normalizedNode);
     markDirty();
+  }
+
+  /**
+   * 续期一年并重新启用，供卡片快捷操作使用。
+   */
+  function renewNode(node) {
+    if (!node?.id) return;
+    updateNode({
+      ...node,
+      expiresAt: extendExpiresAtByOneYear(node.expiresAt),
+      enabled: true
+    });
+    showToast(t('manualNodes.renewed'), 'success');
   }
 
   function deleteNode(nodeId) {
@@ -370,6 +383,7 @@ export function useManualNodes(markDirty) {
     changeManualNodesPage,
     addNode,
     updateNode,
+    renewNode,
     deleteNode,
     deleteAllNodes,
     addNodesFromBulk,

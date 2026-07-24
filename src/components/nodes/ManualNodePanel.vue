@@ -30,7 +30,9 @@ const emit = defineEmits([
   'open-batch-group-modal', // Added
   'ping',
   'ping-all',
-  'manage-groups'
+  'manage-groups',
+  'change',
+  'renew'
 ]);
 
 const isSelectionMode = ref(false);
@@ -218,6 +220,8 @@ const handleDeleteAll = () => {
       :pinging-nodes="pingingNodes"
       :compact-grid="compactGrid"
       @ping="emit('ping', $event)"
+      @change="emit('change', $event)"
+      @renew="emit('renew', $event)"
     />
   </div>
 </template>

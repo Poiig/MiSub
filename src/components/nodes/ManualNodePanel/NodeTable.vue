@@ -38,7 +38,9 @@ const emit = defineEmits([
   'change-page',
   'update:itemsPerPage', // Added
   'set-group-filter', // Added
-  'ping'
+  'ping',
+  'change',
+  'renew'
 ]);
 
 const draggableModel = computed({
@@ -90,7 +92,9 @@ const handleChangePage = (page) => {
                 @edit="emit('edit', node.id)" 
                 @delete="emit('delete', node.id)"
                 @filter-group="emit('set-group-filter', $event)"
-                @ping="emit('ping', node.id)" />
+                @ping="emit('ping', node.id)"
+                @change="emit('change', $event)"
+                @renew="emit('renew', $event)" />
             </div>
           </template>
         </draggable>
@@ -144,6 +148,8 @@ const handleChangePage = (page) => {
             @delete="emit('delete', node.id)" 
             @filter-group="emit('set-group-filter', $event)" 
             @ping="emit('ping', node.id)"
+            @change="emit('change', $event)"
+            @renew="emit('renew', $event)"
           />
         </div>
       </div>

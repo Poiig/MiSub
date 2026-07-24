@@ -67,7 +67,7 @@ const {
 
 const {
   profiles, editingProfile, isNewProfile, showProfileModal, showDeleteProfilesModal,
-  initializeProfiles, handleProfileToggle, handleAddProfile, handleEditProfile,
+  initializeProfiles, handleProfileToggle, handleProfileRenew, handleAddProfile, handleEditProfile,
   handleSaveProfile, handleDeleteProfile, handleDeleteAllProfiles, copyProfileLink,
   cleanupSubscriptions, cleanupNodes, cleanupAllSubscriptions, cleanupAllNodes,
 } = useProfiles(initialProfiles, markDirty, config);
@@ -204,7 +204,7 @@ onUnmounted(() => {
         <!-- Profile Manager -->
         <div class="lg:col-span-1">
           <ProfileManager :config="config" :profiles="profiles" @add="handleAddProfile" @edit="handleEditProfile"
-            @delete="handleDeleteProfile" @delete-all="showDeleteProfilesModal = true" @toggle="handleProfileToggle"
+            @delete="handleDeleteProfile" @delete-all="showDeleteProfilesModal = true" @toggle="handleProfileToggle" @renew="handleProfileRenew"
             @copy-link="copyProfileLink" @preview="handlePreviewProfile" />
         </div>
       </div>

@@ -43,6 +43,21 @@ export function useProfiles(markDirty) {
     }
   };
 
+  /**
+   * 订阅组续期一年并重新启用，避免过期后只能进编辑页改日期。
+   */
+  const handleProfileRenew = (updatedProfile) => {
+    const index = profiles.value.findIndex(p => p.id === updatedProfile.id);
+    if (index === -1) return;
+    profiles.value[index] = {
+      ...profiles.value[index],
+      expiresAt: updatedProfile.expiresAt,
+      enabled: true
+    };
+    markDirty();
+    showToast(t('profiles.renewed'), 'success');
+  };
+
   const handleAddProfile = () => {
     isNewProfile.value = true;
     editingProfile.value = { 
@@ -237,6 +252,7 @@ export function useProfiles(markDirty) {
     showDeleteProfilesModal,
     initializeProfiles: () => { }, // No-op now
     handleProfileToggle,
+    handleProfileRenew,
     handleAddProfile,
     handleEditProfile,
     handleSaveProfile,

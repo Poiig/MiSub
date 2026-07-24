@@ -18,7 +18,7 @@ const isProfileSorting = ref(false);
 
 const {
   profiles, editingProfile, isNewProfile, showProfileModal, showDeleteProfilesModal,
-  handleProfileToggle, handleAddProfile, handleEditProfile,
+  handleProfileToggle, handleProfileRenew, handleAddProfile, handleEditProfile,
   handleSaveProfile, handleDeleteProfile, handleDeleteAllProfiles,
   profilesCurrentPage, profilesTotalPages, paginatedProfiles, changeProfilesPage
 } = useProfiles(markDirty);
@@ -114,7 +114,7 @@ const handleQRCode = (profileId) => {
 
     <ProfilePanel :profiles="profiles" :paginated-profiles="paginatedProfiles" :current-page="profilesCurrentPage"
       :total-pages="profilesTotalPages" :is-sorting="isProfileSorting" @add="handleAddProfile" @edit="handleEditProfile" @delete="handleDeleteProfile"
-      @deleteAll="showDeleteProfilesModal = true" @toggle="handleProfileToggle" @openCopy="handleOpenCopy"
+      @deleteAll="showDeleteProfilesModal = true" @toggle="handleProfileToggle" @renew="handleProfileRenew" @openCopy="handleOpenCopy"
       @preview="handlePreviewProfile" @reorder="handleProfileReorder" @toggle-sort="toggleProfileSorting"
       @change-page="changeProfilesPage" @viewLogs="handleViewLogs" @qrcode="handleQRCode" />
 

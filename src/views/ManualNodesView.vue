@@ -35,7 +35,7 @@ const showGroupManagementModal = ref(false); // 分组管理模态框
 
 const {
   manualNodes, manualNodesCurrentPage, manualNodesTotalPages, paginatedManualNodes, searchTerm,
-  changeManualNodesPage, addNode, updateNode, deleteNode, deleteAllNodes,
+  changeManualNodesPage, addNode, updateNode, renewNode, deleteNode, deleteAllNodes,
   addNodesFromBulk, autoSortNodes, deduplicateNodes, buildDedupPlan, applyDedupPlan,
   reorderManualNodes,
   manualNodeGroups, renameGroup, deleteGroup, reorderGroups,
@@ -156,6 +156,7 @@ const handleGroupReorder = (newOrder) => {
       @update:items-per-page="val => manualNodesPerPage = val"
       @add="handleAddNode" @delete="handleDeleteNodeWithCleanup"
       @edit="(id) => handleEditNode(manualNodes.find(n => n.id === id))" @change-page="changeManualNodesPage"
+      @change="updateNode" @renew="renewNode"
       @update:search-term="handleSearchTermUpdate" @update:view-mode="setViewMode"
       @toggle-sort="isSortingNodes = !isSortingNodes" @mark-dirty="markDirty" @auto-sort="handleAutoSortNodes"
       @deduplicate="handleDeduplicateNodes" @import="showSubscriptionImportModal = true"

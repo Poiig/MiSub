@@ -6,6 +6,7 @@ import Switch from '../../ui/Switch.vue';
 import OperatorChain from '../../features/Operators/OperatorChain.vue';
 import { TRANSFORM_ASSETS } from '@/constants/transform-assets';
 import { useI18n } from '@/i18n/index.js';
+import { extendExpiresAtByOneYear, toDateInputValue } from '@/utils/expiry.js';
 
 const { t } = useI18n();
 
@@ -72,6 +73,15 @@ const flagOptions = [
 
 const selectedTransformAsset = ref(null);
 const emit = defineEmits(['toggle-advanced']);
+
+/**
+ * 表单内一键续期一年（写回 date input 用的 YYYY-MM-DD）。
+ */
+const renewLocalExpiry = () => {
+  props.localProfile.expiresAt = toDateInputValue(
+    extendExpiresAtByOneYear(props.localProfile.expiresAt)
+  );
+};
 
 const isExternalEngine = computed(() => {
   const localMode = props.localProfile?.subconverter?.engineMode || '';
@@ -159,6 +169,29 @@ watch(
     </div>
     <div v-else class="text-xs text-gray-400">
       {{ t('profiles.publicDisplayHint') }}
+    </div>
+  </div>
+
+  <!-- 有效期放在主表单，避免藏在高级设置里导致新建时找不到 -->
+  <div class="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
+    <div>
+      <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">{{ t('profileModal.expiresLabel') }}</label>
+      <div class="flex items-center gap-2">
+        <input
+          type="date"
+          v-model="localProfile.expiresAt"
+          class="block w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 misub-radius-md sm:text-sm dark:text-white"
+        >
+        <button
+          type="button"
+          class="shrink-0 rounded-md border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs font-medium text-indigo-600 transition-colors hover:bg-indigo-100 dark:border-indigo-500/30 dark:bg-indigo-900/30 dark:text-indigo-300 dark:hover:bg-indigo-900/50"
+          :title="t('profiles.renewOneYear')"
+          @click="renewLocalExpiry"
+        >
+          {{ t('profiles.renew') }}
+        </button>
+      </div>
+      <p class="mt-1 text-[11px] text-gray-400">{{ t('profileModal.expiresHint') }}</p>
     </div>
   </div>
 
@@ -281,17 +314,6 @@ watch(
         </div>
 
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-5 bg-white dark:bg-gray-800/40 p-4 border border-gray-100 dark:border-gray-700 misub-radius-lg shadow-sm">
-          <!-- 到期时间 -->
-          <div>
-            <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">{{ t('profileModal.expiresLabel') }}</label>
-            <input
-              type="date"
-              v-model="localProfile.expiresAt"
-              class="block w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 misub-radius-md sm:text-sm dark:text-white"
-            >
-            <p class="mt-1 text-[11px] text-gray-400">{{ t('profileModal.expiresHint') }}</p>
-          </div>
-
           <!-- 内置规则等级 (当切换到内置引擎，或切换到第三方引擎但使用内置分流方案时显示) -->
           <div v-if="!isExternalEngine">
 
