@@ -70,6 +70,15 @@ const selectGroup = (group) => {
   isOpen.value = false;
 };
 
+/**
+ * 清空当前分组：编辑节点时允许从「已选分组」回到未分组。
+ */
+const clearGroup = () => {
+  emit('update:modelValue', '');
+  isTyping.value = false;
+  isOpen.value = false;
+};
+
 const toggleDropdown = () => {
   isTyping.value = false;
   isOpen.value = !isOpen.value;
@@ -124,10 +133,12 @@ onUnmounted(() => {
         :value="modelValue"
         type="text"
         :placeholder="placeholder"
-        class="w-full pl-10 pr-4 py-2 bg-gray-50 dark:bg-black/20 border border-gray-200 dark:border-white/10 misub-radius-lg focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 text-sm transition-all h-[42px] dark:text-white placeholder-gray-400"
+        class="w-full pl-10 py-2 bg-gray-50 dark:bg-black/20 border border-gray-200 dark:border-white/10 misub-radius-lg focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 text-sm transition-all h-[42px] dark:text-white placeholder-gray-400"
+        :class="normalizeGroup(modelValue) ? 'pr-16' : 'pr-10'"
         @input="handleInput"
         @focus="handleFocus"
         @keydown.enter="isOpen = false"
+        @keydown.escape="isOpen = false"
       />
       <div class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
         <slot name="icon">
@@ -137,6 +148,21 @@ onUnmounted(() => {
           </svg>
         </slot>
       </div>
+
+      <!-- 有值时可一键清除，避免只能逐字删 -->
+      <button
+        v-if="normalizeGroup(modelValue)"
+        type="button"
+        data-testid="group-selector-clear"
+        class="absolute right-8 top-1/2 -translate-y-1/2 rounded p-0.5 text-gray-400 transition-colors hover:text-gray-600 dark:hover:text-gray-200"
+        :title="t('common.clearGroup')"
+        :aria-label="t('common.clearGroup')"
+        @click.stop="clearGroup"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+          <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" />
+        </svg>
+      </button>
       
       <!-- Arrow Icon -->
       <div 
@@ -162,13 +188,22 @@ onUnmounted(() => {
         leave-to-class="transform scale-95 opacity-0"
       >
         <div
-          v-if="isOpen && (groups.length > 0 || modelValue)"
+          v-if="isOpen"
           id="group-selector-dropdown"
           class="absolute z-[9999] bg-white dark:bg-gray-800 misub-radius-lg shadow-lg border border-gray-100 dark:border-gray-700 max-h-60 overflow-auto py-1 custom-scrollbar"
           :style="dropdownStyle"
         >
           <button
+            type="button"
+            class="w-full text-left pl-10 pr-4 py-2 text-sm text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700/50 block transition-colors"
+            :class="{ 'bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400': !normalizeGroup(modelValue) }"
+            @click="clearGroup"
+          >
+            {{ t('common.noGroup') }}
+          </button>
+          <button
             v-if="normalizeGroup(modelValue) && !hasExistingGroup"
+            type="button"
             class="w-full text-left pl-10 pr-4 py-2 text-sm text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700/50 block transition-colors"
             @click="selectGroup(modelValue)"
           >
@@ -177,6 +212,7 @@ onUnmounted(() => {
           <button
             v-for="group in filteredGroups"
             :key="group"
+            type="button"
             class="w-full text-left pl-10 pr-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors flex items-center justify-between group-item"
             :class="{ 'bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400': modelValue === group }"
             @click="selectGroup(group)"

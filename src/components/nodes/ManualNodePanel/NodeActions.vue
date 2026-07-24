@@ -89,6 +89,13 @@ const searchModel = computed({
         >
           {{ group }}
         </button>
+        <button
+          type="button"
+          class="shrink-0 whitespace-nowrap rounded-md border border-dashed border-gray-300 px-2.5 py-1 text-xs font-medium text-gray-500 transition-colors hover:border-indigo-300 hover:text-indigo-600 dark:border-gray-600 dark:text-gray-400 dark:hover:border-indigo-500 dark:hover:text-indigo-300"
+          @click="emit('manage-groups')"
+        >
+          {{ t('actions.manageGroups') }}
+        </button>
       </div>
 
       <span v-if="searchTerm" class="mt-2 w-full rounded-full bg-blue-100 px-2.5 py-0.5 text-sm font-semibold text-blue-700 dark:bg-blue-500/20 dark:text-blue-300 sm:mt-0 sm:w-auto">
@@ -164,6 +171,14 @@ const searchModel = computed({
       :class="activeGroupFilter === group ? 'bg-indigo-50 border-indigo-200 text-indigo-700 dark:bg-indigo-900/30 dark:border-indigo-700/50 dark:text-indigo-300' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-gray-700'"
     >
       {{ group }}
+    </button>
+    <!-- 筛选项旁直接进分组管理，避免只能从「更多」里找 -->
+    <button
+      type="button"
+      class="shrink-0 rounded-md border border-dashed border-gray-300 px-3 py-1 text-xs font-medium text-gray-500 transition-colors hover:border-indigo-300 hover:text-indigo-600 dark:border-gray-600 dark:text-gray-400 dark:hover:border-indigo-500 dark:hover:text-indigo-300"
+      @click="emit('manage-groups')"
+    >
+      {{ t('actions.manageGroups') }}
     </button>
   </div>
   </div>
