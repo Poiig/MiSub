@@ -20,6 +20,7 @@ export const DEFAULT_SETTINGS = {
     mergeExpireStrategy: 'max',
     NotifyThresholdDays: 3,
     NotifyThresholdPercent: 90,
+    WeComWebhookUrl: '',
     enableTrafficNode: false,
     enableFlagEmoji: true,
     enablePublicPage: true,
@@ -163,6 +164,7 @@ export const DEFAULT_PROFILE_FORM = {
     transformConfigMode: 'global',
     transformConfig: '',
     ruleLevel: '', // 为空表示跟随全局配置
+    expiresAt: '',
     subscriptions: [],
     manualNodes: [],
     enabled: true,

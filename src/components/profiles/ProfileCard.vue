@@ -2,6 +2,7 @@
 import { computed } from 'vue';
 import { useI18n } from '../../i18n/index.js';
 import Switch from '../ui/Switch.vue';
+import { getDaysRemaining, getExpiryStyleClass } from '../../utils/expiry.js';
 
 const { t } = useI18n();
 
@@ -27,6 +28,17 @@ const manualNodeCount = computed(() => Array.isArray(props.profile?.manualNodes)
 const isEnabled = computed(() => props.profile?.enabled !== false);
 const isPublic = computed(() => props.profile?.isPublic === true);
 
+const expiryInfo = computed(() => {
+  const days = getDaysRemaining(props.profile?.expiresAt);
+  if (days === null) return null;
+  return {
+    text: days < 0
+      ? t('subscriptions.expired')
+      : (days === 0 ? t('subscriptions.expiresToday') : t('subscriptions.expiresInDays', { count: days })),
+    style: getExpiryStyleClass(days)
+  };
+});
+
 </script>
 
 <template>
@@ -39,6 +51,13 @@ const isPublic = computed(() => props.profile?.isPublic === true);
         <div class="flex flex-wrap items-center gap-2">
           <span class="rounded-full bg-gray-100 px-2.5 py-0.5 text-[11px] font-semibold text-gray-600 dark:bg-white/10 dark:text-gray-300">
             {{ t('profiles.badge') }}
+          </span>
+          <span
+            v-if="expiryInfo"
+            class="rounded-full border border-transparent bg-gray-100 px-2.5 py-0.5 text-[11px] font-medium dark:bg-white/5"
+            :class="expiryInfo.style"
+          >
+            {{ expiryInfo.text }}
           </span>
           <span v-if="!isEnabled" class="rounded-full bg-gray-200 px-2.5 py-0.5 text-[11px] font-medium text-gray-600 dark:bg-white/10 dark:text-gray-400">
             {{ t('profiles.disabled') }}

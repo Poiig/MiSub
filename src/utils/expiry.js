@@ -2,6 +2,9 @@
  * 有效期工具：统一「默认一年 / 是否过期 / date 输入框」格式，避免各处手写日期差一天。
  */
 
+/** 临期红字阈值（天）：剩余天数 ≤ 此值时用红色强调 */
+export const EXPIRY_WARN_DAYS = 30;
+
 /**
  * 判断 expiresAt 是否已过期；空值或非法日期视为永不过期（兼容旧数据）。
  * @param {string|null|undefined} expiresAt
@@ -13,6 +16,36 @@ export function isExpired(expiresAt, now = new Date()) {
     const date = new Date(expiresAt);
     if (Number.isNaN(date.getTime())) return false;
     return now > date;
+}
+
+/**
+ * 计算距到期还剩几天（按本地日零点对齐，与机场订阅卡片一致）。
+ * @param {string|null|undefined} expiresAt
+ * @param {Date} [now]
+ * @returns {number|null} 无有效期返回 null；已过期为负数
+ */
+export function getDaysRemaining(expiresAt, now = new Date()) {
+    if (!expiresAt) return null;
+    const expiryDate = new Date(expiresAt);
+    if (Number.isNaN(expiryDate.getTime())) return null;
+    const dayExpiry = new Date(expiryDate);
+    dayExpiry.setHours(0, 0, 0, 0);
+    const dayNow = new Date(now);
+    dayNow.setHours(0, 0, 0, 0);
+    return Math.ceil((dayExpiry - dayNow) / (1000 * 60 * 60 * 24));
+}
+
+/**
+ * 临期/过期用红色，其余用灰色（供列表徽章 class 使用）。
+ * @param {number|null} daysRemaining
+ * @returns {string}
+ */
+export function getExpiryStyleClass(daysRemaining) {
+    if (daysRemaining === null || daysRemaining === undefined) return '';
+    if (daysRemaining < 0 || daysRemaining <= EXPIRY_WARN_DAYS) {
+        return 'text-red-500 font-semibold';
+    }
+    return 'text-gray-500 dark:text-gray-400';
 }
 
 /**

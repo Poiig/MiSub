@@ -1,6 +1,7 @@
 <script setup>
 import TransformCard from './ServiceSettings/TransformCard.vue';
 import TelegramCard from './ServiceSettings/TelegramCard.vue';
+import WeComCard from './ServiceSettings/WeComCard.vue';
 import CronCard from './ServiceSettings/CronCard.vue';
 
 defineProps({
@@ -15,6 +16,7 @@ defineProps({
   <div class="space-y-8">
     <TransformCard :settings="settings" />
     <TelegramCard :settings="settings" />
+    <WeComCard :settings="settings" />
     <CronCard :settings="settings" />
   </div>
 </template>

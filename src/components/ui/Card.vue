@@ -73,10 +73,10 @@ const expiryInfo = computed(() => {
     const diffDays = Math.ceil((expiryDate - now) / (1000 * 60 * 60 * 24));
     if (diffDays > REASONABLE_EXPIRY_LIMIT_DAYS) {
         return null;
-    }  
+    }
+    // 临期 30 天内（含已过期）用红色，与手动节点/订阅组一致
     let style = 'text-gray-500 dark:text-gray-400';
-    if (diffDays < 0) style = 'text-red-500 font-bold';
-    else if (diffDays <= 7) style = 'text-orange-500 font-semibold';
+    if (diffDays < 0 || diffDays <= 30) style = 'text-red-500 font-semibold';
     return {
         date: expiryDate.toLocaleDateString(),
         daysRemaining: diffDays < 0 ? t('subscriptions.expired') : (diffDays === 0 ? t('subscriptions.expiresToday') : t('subscriptions.expiresInDays', { count: diffDays })),

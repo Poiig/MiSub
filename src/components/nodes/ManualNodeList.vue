@@ -3,6 +3,7 @@ import { computed } from 'vue';
 import { extractHostAndPort } from '../../lib/utils.js';
 import { useToastStore } from '../../stores/toast.js';
 import { useI18n } from '@/i18n/index.js';
+import { getDaysRemaining, getExpiryStyleClass } from '../../utils/expiry.js';
 
 const props = defineProps({
   node: {
@@ -22,6 +23,17 @@ const props = defineProps({
 const emit = defineEmits(['delete', 'edit', 'toggle-select', 'filter-group', 'ping']);
 const { showToast } = useToastStore();
 const { t } = useI18n();
+
+const expiryInfo = computed(() => {
+  const days = getDaysRemaining(props.node?.expiresAt);
+  if (days === null) return null;
+  return {
+    text: days < 0
+      ? t('subscriptions.expired')
+      : (days === 0 ? t('subscriptions.expiresToday') : t('subscriptions.expiresInDays', { count: days })),
+    style: getExpiryStyleClass(days)
+  };
+});
 
 const getProtocol = (url) => {
   try {
@@ -145,6 +157,13 @@ const copyToClipboard = async (text) => {
               <p class="flex-1 break-words text-sm font-semibold leading-snug text-gray-900 dark:text-white" :title="node.name">
                 {{ node.name || t('manualNodes.unnamed') }}
               </p>
+            <span
+              v-if="expiryInfo"
+              class="shrink-0 rounded-md border border-transparent bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium dark:bg-white/5"
+              :class="expiryInfo.style"
+            >
+              {{ expiryInfo.text }}
+            </span>
             <div v-if="pingResult" class="flex shrink-0 flex-row items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-medium"
                  :class="{
                     'bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400': pingResult.status === 'ok' && pingResult.latency < 300,
@@ -196,6 +215,13 @@ const copyToClipboard = async (text) => {
         <p class="truncate text-sm font-semibold text-gray-900 dark:text-white" :title="node.name">
           {{ node.name || t('manualNodes.unnamed') }}
         </p>
+        <span
+          v-if="expiryInfo"
+          class="shrink-0 rounded-md border border-transparent bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium dark:bg-white/5"
+          :class="expiryInfo.style"
+        >
+          {{ expiryInfo.text }}
+        </span>
         <div v-if="pingResult" class="flex shrink-0 flex-row items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-medium"
              :class="{
                 'bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400': pingResult.status === 'ok' && pingResult.latency < 300,

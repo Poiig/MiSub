@@ -3,6 +3,8 @@ import {
   dateInputToExpiresAt,
   defaultExpiresAtDateInput,
   defaultExpiresAtOneYear,
+  getDaysRemaining,
+  getExpiryStyleClass,
   isExpired,
   toDateInputValue
 } from '../../src/utils/expiry.js';
@@ -41,6 +43,14 @@ describe('expiry utils (frontend)', () => {
     expect(Number.isNaN(date.getTime())).toBe(false);
     expect(date.getHours()).toBe(23);
     expect(date.getMinutes()).toBe(59);
+  });
+  it('getDaysRemaining 按日计算，临期样式在 30 天内为红', () => {
+    const now = new Date('2026-07-23T12:00:00');
+    expect(getDaysRemaining('2026-08-01T23:59:59', now)).toBe(9);
+    expect(getExpiryStyleClass(9)).toContain('text-red-500');
+    expect(getExpiryStyleClass(31)).toContain('text-gray-500');
+    expect(getExpiryStyleClass(-1)).toContain('text-red-500');
+    expect(getDaysRemaining('', now)).toBeNull();
   });
 });
 

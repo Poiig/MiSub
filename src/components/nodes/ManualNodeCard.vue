@@ -1,7 +1,7 @@
 <script setup>
 import { computed } from 'vue';
 import { useI18n } from '@/i18n/index.js';
-import { isExpired } from '../../utils/expiry.js';
+import { getDaysRemaining, getExpiryStyleClass } from '../../utils/expiry.js';
 
 const props = defineProps({
   node: {
@@ -17,7 +17,16 @@ const props = defineProps({
 const emit = defineEmits(['delete', 'edit', 'toggle-select', 'filter-group', 'ping']);
 const { t } = useI18n();
 
-const nodeExpired = computed(() => isExpired(props.node?.expiresAt));
+const expiryInfo = computed(() => {
+  const days = getDaysRemaining(props.node?.expiresAt);
+  if (days === null) return null;
+  return {
+    text: days < 0
+      ? t('subscriptions.expired')
+      : (days === 0 ? t('subscriptions.expiresToday') : t('subscriptions.expiresInDays', { count: days })),
+    style: getExpiryStyleClass(days)
+  };
+});
 
 const getProtocol = (url) => {
   // ... (protocol logic unchanged)
@@ -110,10 +119,11 @@ const protocolStyle = computed(() => {
       </p>
 
       <span
-        v-if="nodeExpired"
-        class="shrink-0 rounded-md bg-red-100 px-1.5 py-0.5 text-[10px] font-medium text-red-600 dark:bg-red-900/30 dark:text-red-400"
+        v-if="expiryInfo"
+        class="shrink-0 rounded-md border border-transparent bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium dark:bg-white/5"
+        :class="expiryInfo.style"
       >
-        {{ t('manualNodes.expiredBadge') }}
+        {{ expiryInfo.text }}
       </span>
 
       <!-- Ping Result Badge -->

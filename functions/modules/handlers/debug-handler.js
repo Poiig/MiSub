@@ -6,7 +6,7 @@
 import { StorageFactory } from '../../storage-adapter.js';
 import { createJsonResponse, createErrorResponse, JSON_BODY_LIMITS, readJsonWithLimit } from '../utils.js';
 import { handleSubscriptionNodesRequest } from '../subscription-handler.js';
-import { debugTgNotification } from '../../services/notification-service.js';
+import { debugTgNotification, debugWeComNotification } from '../../services/notification-service.js';
 import { parseNodeList, calculateProtocolStats, calculateRegionStats } from '../utils/node-parser.js';
 import { redactSensitiveObject, redactUrl, safeFetchPublicUrl, validatePublicFetchUrl } from '../security-utils.js';
 
@@ -401,7 +401,22 @@ export async function handleTestNotificationRequest(request, env) {
     }
 
     try {
-        const { botToken, chatId } = await readJsonWithLimit(request, JSON_BODY_LIMITS.small);
+        const body = await readJsonWithLimit(request, JSON_BODY_LIMITS.small);
+        const channel = String(body.channel || 'telegram').toLowerCase();
+
+        if (channel === 'wecom') {
+            const settings = { WeComWebhookUrl: body.weComWebhookUrl || body.WeComWebhookUrl || '' };
+            const result = await debugWeComNotification(
+                settings,
+                '🔔 通知测试 🔔\n\n这是来自 MiSub 的企业微信测试消息，用于验证 Webhook 配置是否正确。'
+            );
+            if (result.success) {
+                return createJsonResponse({ success: true, detail: result.response });
+            }
+            return createJsonResponse({ success: false, error: result.error, detail: result.response }, 400);
+        }
+
+        const { botToken, chatId } = body;
         const settings = { BotToken: botToken, ChatID: chatId };
 
         const result = await debugTgNotification(settings, '🔔 <b>通知测试</b> 🔔\n\n这是来自 MiSub 的测试消息，用于验证您的配置是否正确。');

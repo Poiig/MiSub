@@ -29,6 +29,7 @@ export const DEFAULT_SETTINGS = {
     accessLogPersistenceMode: 'light',
     NotifyThresholdDays: 3,
     NotifyThresholdPercent: 90,
+    WeComWebhookUrl: '',
     enableTrafficNode: false,
     enableFlagEmoji: true,
     enablePublicPage: true,

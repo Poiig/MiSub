@@ -289,6 +289,7 @@ watch(
               v-model="localProfile.expiresAt"
               class="block w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 misub-radius-md sm:text-sm dark:text-white"
             >
+            <p class="mt-1 text-[11px] text-gray-400">{{ t('profileModal.expiresHint') }}</p>
           </div>
 
           <!-- 内置规则等级 (当切换到内置引擎，或切换到第三方引擎但使用内置分流方案时显示) -->
