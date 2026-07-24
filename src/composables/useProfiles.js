@@ -3,7 +3,7 @@ import { storeToRefs } from 'pinia';
 import { useDataStore } from '../stores/useDataStore';
 import { useToastStore } from '../stores/toast';
 import { generateProfileId } from '../utils/id.js';
-import { defaultExpiresAtDateInput } from '../utils/expiry.js';
+import { defaultExpiresAtDateInput, extendExpiresAtByOneYear } from '../utils/expiry.js';
 import { t } from '../i18n/index.js';
 
 export function useProfiles(markDirty) {
@@ -46,12 +46,12 @@ export function useProfiles(markDirty) {
   /**
    * 订阅组续期一年并重新启用，避免过期后只能进编辑页改日期。
    */
-  const handleProfileRenew = (updatedProfile) => {
-    const index = profiles.value.findIndex(p => p.id === updatedProfile.id);
+  const handleProfileRenew = (profile) => {
+    const index = profiles.value.findIndex(p => p.id === profile.id);
     if (index === -1) return;
     profiles.value[index] = {
       ...profiles.value[index],
-      expiresAt: updatedProfile.expiresAt,
+      expiresAt: extendExpiresAtByOneYear(profiles.value[index].expiresAt),
       enabled: true
     };
     markDirty();

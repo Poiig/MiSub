@@ -3,11 +3,7 @@ import { computed } from 'vue';
 import { useI18n } from '@/i18n/index.js';
 import Switch from '../ui/Switch.vue';
 import { extractHostAndPort } from '../../lib/utils.js';
-import {
-  extendExpiresAtByOneYear,
-  getDaysRemaining,
-  getExpiryStyleClass
-} from '../../utils/expiry.js';
+import { getDaysRemaining, getExpiryStyleClass } from '../../utils/expiry.js';
 
 const props = defineProps({
   node: {
@@ -89,14 +85,10 @@ const handleEnabledChange = (enabled) => {
 };
 
 /**
- * 一键续期一年并重新启用。
+ * 请求续期：只抛出当前节点，由上层统一计算新有效期，避免重复 +1 年。
  */
 const handleRenew = () => {
-  emit('renew', {
-    ...props.node,
-    expiresAt: extendExpiresAtByOneYear(props.node?.expiresAt),
-    enabled: true
-  });
+  emit('renew', props.node);
 };
 </script>
 
