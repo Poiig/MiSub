@@ -105,7 +105,8 @@ const handleRenew = () => {
     <div class="relative z-10 flex h-full flex-col">
       <div class="mb-4 flex items-start justify-between gap-3">
         <div class="min-w-0 flex-1">
-          <div class="mb-1.5 flex flex-wrap items-center gap-2">
+          <!-- 头部只展示协议与剩余天数，避免分组名挤换行导致两张卡片样式不一致 -->
+          <div class="mb-1.5 flex items-center gap-2">
             <div
               v-if="isSelectionMode"
               class="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition-colors"
@@ -115,14 +116,6 @@ const handleRenew = () => {
             </div>
             <span class="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider" :class="protocolStyle.style">
               {{ protocolStyle.text }}
-            </span>
-            <span
-              v-if="node.group"
-              class="max-w-[100px] truncate rounded-full border border-transparent bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-500 dark:bg-white/5 dark:text-gray-400"
-              :title="node.group"
-              @click.stop="emit('filter-group', node.group)"
-            >
-              {{ node.group }}
             </span>
             <span
               v-if="expiryInfo"
@@ -184,18 +177,6 @@ const handleRenew = () => {
         </div>
       </div>
 
-      <div class="relative mb-4">
-        <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-          <svg class="h-3.5 w-3.5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg>
-        </div>
-        <input
-          type="text"
-          :value="node.url"
-          readonly
-          class="w-full rounded-lg border border-gray-100 bg-gray-50/80 py-2 pl-9 pr-3 font-mono text-xs text-gray-500 transition-all focus:border-primary-500/30 focus:bg-white focus:outline-none dark:border-white/5 dark:bg-black/20 dark:text-gray-400 dark:focus:bg-black/40"
-        >
-      </div>
-
       <div class="grid gap-3 rounded-lg border border-gray-100 bg-gray-50/80 p-3 dark:border-white/10 dark:bg-white/5">
         <div class="flex items-center justify-between text-xs">
           <span class="text-gray-500 dark:text-gray-400">{{ t('manualNodes.addressLabel') }}</span>
@@ -205,8 +186,17 @@ const handleRenew = () => {
         </div>
         <div class="flex items-center justify-between text-xs">
           <span class="text-gray-500 dark:text-gray-400">{{ t('manualNodes.groupOptional') }}</span>
-          <span class="font-semibold text-gray-700 dark:text-gray-200">
-            {{ node.group || t('manualNodes.ungrouped') }}
+          <button
+            v-if="node.group"
+            type="button"
+            class="truncate font-semibold text-gray-700 transition-colors hover:text-primary-500 dark:text-gray-200"
+            :title="node.group"
+            @click.stop="emit('filter-group', node.group)"
+          >
+            {{ node.group }}
+          </button>
+          <span v-else class="font-semibold text-gray-700 dark:text-gray-200">
+            {{ t('manualNodes.ungrouped') }}
           </span>
         </div>
       </div>
