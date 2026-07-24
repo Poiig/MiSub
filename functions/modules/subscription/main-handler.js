@@ -4,7 +4,7 @@ import { generateCombinedNodeList } from '../../services/subscription-service.js
 import { sendEnhancedTgNotification, tgEscape } from '../notifications.js';
 import { KV_KEY_SUBS, KV_KEY_PROFILES, KV_KEY_SETTINGS, DEFAULT_SETTINGS as defaultSettings, DEFAULT_SUBCONVERTER_BACKEND } from '../config.js';
 import { createDisguiseResponse } from '../disguise-page.js';
-import { generateCacheKey, setCache } from '../../services/node-cache-service.js';
+import { generateCacheKey, setCache, clearCache } from '../../services/node-cache-service.js';
 import { resolveRequestContext } from './request-context.js';
 import { resolveNodeListWithCache } from './cache-manager.js';
 import { ProcessorService } from '../../services/processor-service.js';
@@ -434,8 +434,13 @@ export async function handleMisubRequest(context) {
     let targetMisubs;
     let subName = config.FileName;
     let isProfileExpired = false; // Moved declaration here
+    // 手动节点因过期被跳过：需绕过/清空节点缓存，否则客户端会一直拿到过期前的列表
+    let skippedExpiredManuals = false;
+    // 订阅组未过期，但可用源因节点过期被清空：用伪节点覆盖客户端本地旧节点
+    let isEmptyDueToNodeExpiry = false;
 
     const DEFAULT_EXPIRED_NODE = `trojan://00000000-0000-0000-0000-000000000000@127.0.0.1:443#${encodeURIComponent('您的订阅已失效')}`;
+    const NODE_EXPIRED_PLACEHOLDER = `trojan://00000000-0000-0000-0000-000000000000@127.0.0.1:443#${encodeURIComponent('节点已过期')}`;
 
     let currentProfile = null;
 
@@ -494,6 +499,7 @@ export async function handleMisubRequest(context) {
                     const node = misubMap.get(id);
                     if (!node || typeof node.url !== 'string' || node.url.startsWith('http')) return;
                     if (shouldSkipExpiredManualNode(node)) {
+                        skippedExpiredManuals = true;
                         if (node.enabled !== false) expiredManualNodeIds.push(node.id);
                         return;
                     }
@@ -508,6 +514,11 @@ export async function handleMisubRequest(context) {
                     persistExpiryDisables(storageAdapter, { subscriptionIds: expiredManualNodeIds })
                         .catch(err => console.error('[Expiry] Failed to disable expired manual nodes:', err))
                 );
+            }
+            // 组内只剩过期手动节点时：空列表多数客户端不会清本地，注入伪节点强制覆盖
+            if (targetMisubs.length === 0 && skippedExpiredManuals) {
+                isEmptyDueToNodeExpiry = true;
+                targetMisubs = [{ id: 'expired-node', url: NODE_EXPIRED_PLACEHOLDER, name: '节点已过期', isExpiredNode: true }];
             }
             // [新增] 增加订阅组下载计数
             // 仅在非回调请求时及非内部请求时增加计数(避免重复计数)
@@ -538,6 +549,7 @@ export async function handleMisubRequest(context) {
         targetMisubs = allMisubs.filter(s => {
             if (!s.enabled) return false;
             if (shouldSkipExpiredManualNode(s)) {
+                skippedExpiredManuals = true;
                 expiredManualNodeIds.push(s.id);
                 return false;
             }
@@ -548,6 +560,10 @@ export async function handleMisubRequest(context) {
                 persistExpiryDisables(storageAdapter, { subscriptionIds: expiredManualNodeIds })
                     .catch(err => console.error('[Expiry] Failed to disable expired manual nodes:', err))
             );
+        }
+        if (targetMisubs.length === 0 && skippedExpiredManuals) {
+            isEmptyDueToNodeExpiry = true;
+            targetMisubs = [{ id: 'expired-node', url: NODE_EXPIRED_PLACEHOLDER, name: '节点已过期', isExpiredNode: true }];
         }
     }
 
@@ -564,7 +580,7 @@ export async function handleMisubRequest(context) {
 
     let prependedContentForSubconverter = '';
 
-    if (isProfileExpired) { // Use the flag set earlier
+    if (isProfileExpired || isEmptyDueToNodeExpiry) { // Use the flag set earlier
         prependedContentForSubconverter = ''; // Expired node is now in targetMisubs
     } else {
         // Otherwise, add traffic remaining info if applicable
@@ -623,8 +639,12 @@ export async function handleMisubRequest(context) {
         profileIdentifier || token
     );
 
-    // 检查是否强制刷新（通过 URL 参数）
-    const forceRefresh = url.searchParams.has('refresh') || url.searchParams.has('nocache') || url.searchParams.has('debug');
+    // 检查是否强制刷新（通过 URL 参数）；跳过过期手动节点时必须绕过旧缓存
+    let forceRefresh = url.searchParams.has('refresh') || url.searchParams.has('nocache') || url.searchParams.has('debug');
+    if (skippedExpiredManuals || isEmptyDueToNodeExpiry) {
+        forceRefresh = true;
+        await clearCache(storageAdapter, cacheKey);
+    }
 
     // 定义刷新函数（用于后台刷新）
     const refreshNodes = async (isBackground = false) => {
@@ -747,9 +767,12 @@ export async function handleMisubRequest(context) {
             .map(s => s.name || s.url);
         // 仅在至少一个订阅源真正从远程拉取成功时才刷新缓存时间
         // 如果没有 HTTP 订阅源（纯手动节点/过期订阅组），则始终写入缓存
+        // 节点过期清空时允许空列表覆盖，否则旧节点会一直留在缓存里
         const stats = context.generationStats;
-        if (!stats?.sourceCount || stats.upstreamSuccessCount > 0) {
-            await setCache(storageAdapter, cacheKey, freshNodes, sourceNames);
+        if (!stats?.sourceCount || stats.upstreamSuccessCount > 0 || skippedExpiredManuals || isEmptyDueToNodeExpiry) {
+            await setCache(storageAdapter, cacheKey, freshNodes, sourceNames, {
+                allowEmptyOverwrite: skippedExpiredManuals || isEmptyDueToNodeExpiry
+            });
         }
         return freshNodes;
     };
@@ -766,11 +789,14 @@ export async function handleMisubRequest(context) {
     console.log(`[MiSub Nodes] Count/Length: ${combinedNodeList ? combinedNodeList.length : 0}`);
 
     const domain = url.hostname;
+    // 订阅组过期与「仅剩过期手动节点」都用伪节点覆盖客户端本地列表
+    const useExpiredFallback = isProfileExpired || isEmptyDueToNodeExpiry;
+    const expiredFallbackContent = `${isProfileExpired ? DEFAULT_EXPIRED_NODE : NODE_EXPIRED_PLACEHOLDER}\n`;
 
     // [Support] External Subconverter Logic
     // 1. If 'nodes' format requested, return plain text nodes (DataSource for external converters)
     if (targetFormat === 'nodes') {
-        const contentToReturn = isProfileExpired ? (DEFAULT_EXPIRED_NODE + '\n') : combinedNodeList;
+        const contentToReturn = useExpiredFallback ? expiredFallbackContent : combinedNodeList;
         const userInfoHeader = buildUserInfoHeaderFromSubscriptions(context, targetMisubs);
         const nodeHeaders = {
             "Content-Type": "text/plain; charset=utf-8",
@@ -807,7 +833,7 @@ export async function handleMisubRequest(context) {
                 };
                 const rendered = await ProcessorService.renderOutput({
                     targetFormat,
-                    combinedNodeList: isProfileExpired ? (DEFAULT_EXPIRED_NODE + '\n') : combinedNodeList,
+                    combinedNodeList: useExpiredFallback ? expiredFallbackContent : combinedNodeList,
                     subName,
                     config,
                     builtinOptions,
@@ -836,7 +862,7 @@ export async function handleMisubRequest(context) {
         }
 
         const backend = url.searchParams.get('backend') || profileSub.backend || globalSub.defaultBackend;
-        const externalNodeList = isProfileExpired ? (DEFAULT_EXPIRED_NODE + '\n') : combinedNodeList;
+        const externalNodeList = useExpiredFallback ? expiredFallbackContent : combinedNodeList;
         const externalUrl = buildExternalSubconverterUrl({
             backend,
             targetFormat,
@@ -880,8 +906,8 @@ export async function handleMisubRequest(context) {
 
     if (targetFormat === 'base64') {
         let contentToEncode;
-        if (isProfileExpired) {
-            contentToEncode = DEFAULT_EXPIRED_NODE + '\n';
+        if (useExpiredFallback) {
+            contentToEncode = expiredFallbackContent;
         } else {
             contentToEncode = combinedNodeList;
         }

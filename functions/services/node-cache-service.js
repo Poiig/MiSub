@@ -80,12 +80,14 @@ export async function getCache(storageAdapter, cacheKey) {
  * @param {string} cacheKey - 缓存键
  * @param {string} nodes - 节点列表字符串
  * @param {string[]} sources - 来源订阅名称列表
+ * @param {{ allowEmptyOverwrite?: boolean }} [options] - allowEmptyOverwrite：过期清空等场景允许空列表覆盖旧缓存
  * @returns {Promise<boolean>}
  */
-export async function setCache(storageAdapter, cacheKey, nodes, sources = []) {
+export async function setCache(storageAdapter, cacheKey, nodes, sources = [], options = {}) {
     try {
         const nodeCount = nodes.split('\n').filter(line => line.trim()).length;
-        if (nodeCount === 0) {
+        // 默认拒绝空覆盖，避免上游全失败把有效缓存冲掉；节点过期清空时需显式允许
+        if (nodeCount === 0 && !options.allowEmptyOverwrite) {
             const existing = await storageAdapter.get(cacheKey);
             const existingNodeCount = existing?.nodeCount || String(existing?.nodes || '').split('\n').filter(line => line.trim()).length;
             if (existingNodeCount > 0) {
